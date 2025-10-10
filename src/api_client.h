@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 #include "config.h"
 
 // =============================================
@@ -31,14 +32,14 @@ private:
     bool parseActivityResponse(const String& response, bool& success);
 
 public:
-    APIClient(const String& serverURL = API_BASE_URL, const String& version = API_VERSION);
+    APIClient(const String& serverURL = API_BASE_URL);
 
     // Initialization
     void begin();
     bool isReady();
 
-    // Card validation
-    bool validateSantriCard(const String& uid);
+    // Card validation with new endpoint format
+    bool validateSantriCard(const String& cardUID, const String& santriID);
 
     // Activity logging
     bool logSantriActivity(const String& memberID, int institution);
@@ -51,6 +52,9 @@ public:
     // Response data access (for debugging)
     int getLastResponseCode();
     String getLastResponseBody();
+
+    // Utility methods for device info
+    String getDeviceMACAddress();
 
 private:
     String lastError;
@@ -68,8 +72,8 @@ extern APIClient apiClient;
 // UTILITY FUNCTIONS
 // =============================================
 
-// Quick validation check
-bool isCardValid(const String& uid);
+// Quick validation check with new format
+bool isCardValid(const String& cardUID, const String& santriID);
 
 // Quick activity logging
 bool logActivity(const String& memberID, int institution);

@@ -6,8 +6,8 @@
 // =============================================
 
 // I2C Pins for LCD and PN532
-#define I2C_SDA_PIN     21
-#define I2C_SCL_PIN     22
+#define I2C_SDA_PIN     8
+#define I2C_SCL_PIN     9
 
 // LCD I2C Address
 #define LCD_I2C_ADDR    0x27
@@ -26,7 +26,9 @@
 
 // Server Configuration
 #define API_BASE_URL    "http://127.0.0.1:7894"
-#define API_VERSION     "/api/v1"
+
+// Note: Card validation now uses query parameters:
+// GET /api/v1/santri/validate?id_card={uid}&id_santri={santri_id}&id_device={mac_address}
 
 // Endpoints
 #define VALIDATE_UID_ENDPOINT   "/check"

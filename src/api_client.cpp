@@ -5,8 +5,8 @@
 // CLASS IMPLEMENTATION
 // =============================================
 
-APIClient::APIClient(const String& serverURL, const String& version) :
-    baseURL(serverURL), apiVersion(version), requestTimeout(5000) {  // 5 second timeout
+APIClient::APIClient(const String& serverURL) :
+    baseURL(serverURL), requestTimeout(5000) {  // 5 second timeout
     lastResponseCode = 0;
     lastResponseBody = "";
 }
@@ -20,16 +20,27 @@ bool APIClient::isReady() {
     return WiFi.status() == WL_CONNECTED;
 }
 
-bool APIClient::validateSantriCard(const String& uid) {
+bool APIClient::validateSantriCard(const String& cardUID, const String& santriID) {
     if (!isReady()) {
         lastError = "WiFi not connected";
         return false;
     }
 
-    String url = buildURL(VALIDATE_UID_ENDPOINT + uid);
+    // Get device MAC address
+    String deviceMAC = getDeviceMACAddress();
 
-    Serial.print("Validating card UID: ");
-    Serial.println(uid);
+    // Build URL with query parameters
+    String url = buildURL(VALIDATE_UID_ENDPOINT);
+    url += "?id_card=" + cardUID;
+    url += "&id_santri=" + santriID;
+    url += "&id_device=" + deviceMAC;
+
+    Serial.print("Validating card - UID: ");
+    Serial.print(cardUID);
+    Serial.print(", Santri ID: ");
+    Serial.print(santriID);
+    Serial.print(", Device MAC: ");
+    Serial.println(deviceMAC);
     Serial.print("Request URL: ");
     Serial.println(url);
 
@@ -221,12 +232,19 @@ String APIClient::getLastResponseBody() {
     return lastResponseBody;
 }
 
+String APIClient::getDeviceMACAddress() {
+    String macAddress = WiFi.macAddress();
+    // Remove colons from MAC address
+    macAddress.replace(":", "");
+    return macAddress;
+}
+
 // =============================================
 // UTILITY FUNCTIONS
 // =============================================
 
-bool isCardValid(const String& uid) {
-    return apiClient.validateSantriCard(uid);
+bool isCardValid(const String& cardUID, const String& santriID) {
+    return apiClient.validateSantriCard(cardUID, santriID);
 }
 
 bool logActivity(const String& memberID, int institution) {
@@ -235,6 +253,11 @@ bool logActivity(const String& memberID, int institution) {
 
 bool pingServer() {
     return apiClient.testConnection();
+}
+
+// Get device MAC address utility
+String getDeviceMACAddress() {
+    return apiClient.getDeviceMACAddress();
 }
 
 // =============================================

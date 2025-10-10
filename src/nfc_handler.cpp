@@ -1,9 +1,16 @@
 #include "nfc_handler.h"
+#include "mybase64.h"
 #include <ArduinoJson.h>
 
 // =============================================
 // CLASS IMPLEMENTATION
 // =============================================
+
+
+#define BLOCK_SIZE 16
+#define LONG_TLV_SIZE 4
+#define SHORT_TLV_SIZE 2
+
 
 NFCHandler::NFCHandler(uint8_t ssPin, uint8_t clkPin, uint8_t misoPin, uint8_t mosiPin) :
     isInitialized(false), lastCardCheck(0), cardTimeout(0) {
@@ -246,6 +253,107 @@ String waitForCardUID(uint32_t timeoutMs) {
 
 bool isCardStillPresent() {
     return nfcHandler.isCardPresent();
+}
+
+
+String CPrintHexChar(const byte *data, const long numBytes)
+{
+  int32_t szPos;
+  String ll;
+  char decoded[512];
+  JsonDocument doc;
+
+  for (szPos = 10; szPos < numBytes; szPos++)
+  {
+    if (data[szPos] <= 0x1F)
+      Serial.print("");
+    else
+    {
+      ll += (char)data[szPos];
+    }
+  }
+  b64_decode(decoded, (char *)ll.c_str(), ll.length());
+  DeserializationError error = deserializeJson(doc, decoded);
+  if (error)
+  {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return "error";
+  }
+  // const char *id = doc["id"];                       // "5744"
+  const char *induk = doc["induk"]; // "196600"
+  // const char *nik = doc["nik"];                     // "3201266712060003"
+  const char *nama = doc["nama"]; // "Inggrit Destiana Nugraeni"
+  // const char *alamat = doc["alamat"];               // "Jln Megamendung Rt.04/04 Blok C No 20 CIPAYUNG (CIPAYUNG DATAR) ...
+  // const char *kabupaten = doc["kabupaten"];         // "BOGOR"
+  // const char *tempat_lahir = doc["tempat_lahir"];   // "BOGOR"
+  // const char *tanggal_lahir = doc["tanggal_lahir"]; // "2006-12-27"
+  // const char *nisn = doc["nisn"];                   // "0063760230"
+  // const char *foto = doc["foto"];                   // "5c78eca25cf0836cc15623b4c18d9336.JPG"
+  String result = String(induk) + "-" + String(nama);
+  return result;
+}
+
+int getNdefStartIndex(byte *data)
+{
+  for (int i = 0; i < BLOCK_SIZE; i++)
+  {
+    if (data[i] == 0x0)
+    {
+    }
+    else if (data[i] == 0x3)
+    {
+      return i;
+    }
+    else
+    {
+      Serial.print("Unknown TLV ");
+      return -2;
+    }
+  }
+  return -1;
+}
+
+int getBufferSize(int messageLength)
+{
+  int bufferSize = messageLength;
+  if (messageLength < 0xFF)
+  {
+    bufferSize += SHORT_TLV_SIZE + 1;
+  }
+  else
+  {
+    bufferSize += LONG_TLV_SIZE + 1;
+  }
+  if (bufferSize % BLOCK_SIZE != 0)
+  {
+    bufferSize = ((bufferSize / BLOCK_SIZE) + 1) * BLOCK_SIZE;
+  }
+  return bufferSize;
+}
+
+bool decodeTlv(byte *data, int &messageLength, int &messageStartIndex)
+{
+  int i = getNdefStartIndex(data);
+  if (i < 0 || data[i] != 0x3)
+  {
+    Serial.println(F("Error. Can't decode message length."));
+    return false;
+  }
+  else
+  {
+    if (data[i + 1] == 0xFF)
+    {
+      messageLength = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
+      messageStartIndex = i + LONG_TLV_SIZE;
+    }
+    else
+    {
+      messageLength = data[i + 1];
+      messageStartIndex = i + SHORT_TLV_SIZE;
+    }
+  }
+  return true;
 }
 
 String getCardTypeString(uint8_t cardType) {

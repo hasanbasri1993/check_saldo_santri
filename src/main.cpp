@@ -159,26 +159,27 @@ void handleValidatingState() {
         stateStartTime = millis();
     }
 
-    // Perform validation
-    if (apiClient.validateSantriCard(currentCardUID)) {
-        // Card is valid, try to read santri data
-        if (nfcHandler.readSantriData(santriNama, santriInduk)) {
-            Serial.print("Santri data read - Nama: ");
-            Serial.print(santriNama);
-            Serial.print(", Induk: ");
-            Serial.println(santriInduk);
+    // First, try to read santri data from card
+    if (nfcHandler.readSantriData(santriNama, santriInduk)) {
+        Serial.print("Santri data read - Nama: ");
+        Serial.print(santriNama);
+        Serial.print(", Induk: ");
+        Serial.println(santriInduk);
 
+        // Now validate the card using santri ID from JSON data
+        if (apiClient.validateSantriCard(currentCardUID, santriInduk)) {
+            // Card is valid
             display.showUserInfo(santriNama);
             transitionToState(WAITING_FOR_INPUT);
         } else {
-            Serial.println("Failed to read santri data from card");
+            // Card validation failed
+            Serial.println("Card validation failed");
             display.showInvalidCard();
             buzzer.playError();
             transitionToState(DISPLAY_RESULT);
         }
     } else {
-        // Card is invalid
-        Serial.println("Card validation failed");
+        Serial.println("Failed to read santri data from card");
         display.showInvalidCard();
         buzzer.playError();
         transitionToState(DISPLAY_RESULT);
