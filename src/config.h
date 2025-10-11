@@ -73,6 +73,8 @@ enum SystemState {
     WAITING_FOR_INPUT,      // Card validated, waiting for button press
     SUBMITTING,             // Submitting activity to server
     DISPLAY_RESULT,         // Showing result and waiting for timeout
+    OTA_PROGRESS,           // OTA update in progress
+    OTA_COMPLETE,           // OTA update completed, waiting before reset
     ERROR_STATE             // Error state, waiting for retry
 };
 
@@ -103,6 +105,10 @@ enum SystemState {
 #define MSG_SERVER_ERROR_2      "Down"
 #define MSG_WIFI_ERROR_1        "Error: WiFi"
 #define MSG_WIFI_ERROR_2        "Connection"
+#define MSG_OTA_PROGRESS_1      "OTA Update..."
+#define MSG_OTA_PROGRESS_2      "0%"
+#define MSG_OTA_COMPLETE_1      "Update Complete!"
+#define MSG_OTA_COMPLETE_2      "Restarting..."
 
 // =============================================
 // BUZZER PATTERNS

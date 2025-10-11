@@ -135,6 +135,7 @@ void DisplayManager::update() {
 
 void DisplayManager::showProgressBar(uint8_t percentage, uint8_t row) {
     if (percentage > 100) percentage = 100;
+    if (cols == 0) return;  // Safety check
 
     uint8_t barLength = (cols * percentage) / 100;
     uint8_t emptyLength = cols - barLength;

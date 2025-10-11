@@ -45,7 +45,8 @@ Sistem pembaca kartu santri berbasis ESP32 dengan fitur Over-The-Air (OTA) updat
    - Username: `admin`
    - Password: `santri123`
 4. **Upload file .bin** hasil build dari PlatformIO
-5. **Tunggu progress** dan device akan reboot otomatis
+5. **LCD menampilkan progress akurat** berdasarkan ukuran file sebenarnya
+6. **Device reboot otomatis** setelah update selesai
 
 ### Web Interface Endpoints
 

@@ -41,6 +41,8 @@ void handleValidatingState();
 void handleWaitingForInputState();
 void handleSubmittingState();
 void handleDisplayResultState();
+void handleOTAProgressState();
+void handleOTACompleteState();
 void handleErrorState();
 bool initializeSystem();
 void performSystemCheck();
@@ -81,6 +83,17 @@ void loop() {
     buzzer.update();
     otaHandler.update();
 
+    // Check for OTA state triggers
+    if (otaHandler.shouldTriggerOTAProgressState()) {
+        transitionToState(OTA_PROGRESS);
+        otaHandler.resetOTAProgressTrigger();
+    }
+
+    if (otaHandler.shouldTriggerOTACompleteState()) {
+        transitionToState(OTA_COMPLETE);
+        otaHandler.resetOTACompleteTrigger();
+    }
+
     // Handle state machine
     handleStateMachine();
 
@@ -115,6 +128,14 @@ void handleStateMachine() {
 
         case DISPLAY_RESULT:
             handleDisplayResultState();
+            break;
+
+        case OTA_PROGRESS:
+            handleOTAProgressState();
+            break;
+
+        case OTA_COMPLETE:
+            handleOTACompleteState();
             break;
 
         case ERROR_STATE:
@@ -248,6 +269,56 @@ void handleErrorState() {
     // Handle error state - could be WiFi errors, NFC errors, etc.
     if (millis() - stateStartTime >= LCD_MESSAGE_DELAY) {
         transitionToState(IDLE);
+    }
+}
+
+void handleOTAProgressState() {
+    static unsigned long lastProgressUpdate = 0;
+
+    // Update progress display periodically
+    if (millis() - lastProgressUpdate >= 500) {  // Update every 500ms
+        if (otaHandler.isOTAInProgress()) {
+            unsigned int progress = otaHandler.getOTAProgress();
+            unsigned int total = otaHandler.getOTATotal();
+
+            // Calculate percentage safely (avoid division by zero)
+            unsigned int percentage;
+            if (total > 0 && progress > 0) {
+                percentage = (progress * 100) / total;
+            } else {
+                percentage = 0;
+            }
+
+            // Update LCD with current progress
+            String progressText = String(percentage) + "%";
+            display.showCustomMessage(MSG_OTA_PROGRESS_1, progressText);
+
+            Serial.printf("OTA Progress: %u%% (%u/%u bytes)\n", percentage, progress, total > 0 ? total : progress);
+        }
+
+        lastProgressUpdate = millis();
+    }
+
+    // Check if OTA is complete
+    if (!otaHandler.isOTAInProgress()) {
+        if (otaHandler.isOTASuccess()) {
+            transitionToState(OTA_COMPLETE);
+        } else {
+            // OTA failed, go back to idle
+            display.showCustomMessage("OTA Failed", "Check Serial");
+            delay(2000);
+            transitionToState(IDLE);
+        }
+    }
+}
+
+void handleOTACompleteState() {
+    // Show completion message for 3000ms before restart
+    display.showCustomMessage(MSG_OTA_COMPLETE_1, MSG_OTA_COMPLETE_2);
+
+    if (millis() - stateStartTime >= 3000) {
+        Serial.println("OTA complete delay finished - restarting...");
+        ESP.restart();
     }
 }
 

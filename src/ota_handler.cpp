@@ -9,7 +9,9 @@
 const char* OTAHandler::otaUsername = "admin";
 const char* OTAHandler::otaPassword = "santri123";
 
-OTAHandler::OTAHandler() : server(nullptr), isRunning(false), lastOTACheck(0) {}
+OTAHandler::OTAHandler() : server(nullptr), isRunning(false), lastOTACheck(0),
+    otaInProgress(false), otaProgress(0), otaTotal(100), otaSuccess(false),
+    shouldTriggerOTAProgress(false), shouldTriggerOTAComplete(false) {}
 
 bool OTAHandler::begin(uint16_t port) {
     Serial.println("Starting OTA Web Server...");
@@ -94,6 +96,16 @@ void OTAHandler::setupOTARoutes() {
             return request->requestAuthentication();
         }
 
+        // Get file size from Content-Length header
+        String contentLength = request->header("Content-Length");
+        unsigned long fileSize = 0;
+        if (contentLength.length() > 0) {
+            fileSize = contentLength.toInt();
+            Serial.printf("File size from header: %lu bytes\n", fileSize);
+        } else {
+            Serial.println("No Content-Length header found, using estimation");
+        }
+
         // Handle OTA upload
         if (Update.hasError()) {
             AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Update failed");
@@ -113,11 +125,14 @@ void OTAHandler::setupOTARoutes() {
                 return;
             }
 
-            // Start OTA update
+            // Start OTA update and trigger progress callback
             if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
                 Serial.println("Cannot start OTA update");
                 return;
             }
+
+            // Initialize OTA progress tracking (fileSize already processed above)
+            otaHandler.onOTAStart();
         }
 
         // Write data
@@ -126,22 +141,28 @@ void OTAHandler::setupOTARoutes() {
             return;
         }
 
+        // Update progress
+        unsigned int progress = index + len;
+
+        otaHandler.onOTAProgress(progress, otaTotal);
+
         // Finish update
         if (final) {
-            if (Update.end(true)) {
-                Serial.printf("OTA Update Success: %u bytes\n", index + len);
-                AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Update successful");
-                response->addHeader("Connection", "close");
-                request->send(response);
+            bool success = Update.end(true);
+            Serial.printf("OTA Update %s: %u bytes\n", success ? "Success" : "Failed", index + len);
 
-                // Restart after successful update
-                delay(1000);
+            AsyncWebServerResponse *response = request->beginResponse(200, "text/plain",
+                success ? "Update successful" : "Update failed");
+            response->addHeader("Connection", "close");
+            request->send(response);
+
+            // Trigger OTA end callback
+            otaHandler.onOTAEnd(success);
+
+            if (success) {
+                // Delay 3000ms before restart to show completion message
+                delay(3000);
                 ESP.restart();
-            } else {
-                Serial.println("OTA Update failed");
-                AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", "Update failed");
-                response->addHeader("Connection", "close");
-                request->send(response);
             }
         }
     });
@@ -206,6 +227,56 @@ void OTAHandler::update() {
 void OTAHandler::setOTACredentials(const char* username, const char* password) {
     // Note: This needs to be called before begin() to take effect
     Serial.println("OTA credentials updated (restart required)");
+}
+
+void OTAHandler::onOTAStart(unsigned long fileSize) {
+    Serial.println("OTA Update started - showing progress on LCD");
+    otaInProgress = true;
+    otaProgress = 0;
+
+    // Use actual file size if available, otherwise estimate
+    if (fileSize > 0) {
+        otaTotal = fileSize;
+        Serial.printf("Using actual file size: %lu bytes\n", fileSize);
+    } else {
+        otaTotal = 100000;  // Fallback estimation ~100KB
+        Serial.println("Using estimated file size: 100KB");
+    }
+
+    otaSuccess = false;
+
+    // Set flag to trigger state machine
+    shouldTriggerOTAProgress = true;
+}
+
+void OTAHandler::onOTAProgress(unsigned int progress, unsigned int total) {
+    otaProgress = progress;
+    // Don't update otaTotal here as we already have it from Content-Length header
+
+    // Safe percentage calculation to avoid division by zero
+    unsigned int percentage = 0;
+    if (otaTotal > 0 && progress > 0) {
+        percentage = (progress * 100) / otaTotal;
+    } else if (progress > 0) {
+        // Estimate when total is not yet known (fallback)
+        percentage = (progress * 100) / 100000;  // Assume ~100KB file
+        if (percentage > 95) percentage = 95;   // Cap at 95%
+    }
+
+    Serial.printf("OTA Progress: %u/%u bytes (%u%%)\n", progress, otaTotal > 0 ? otaTotal : progress, percentage);
+}
+
+void OTAHandler::onOTAEnd(bool success) {
+    Serial.printf("OTA Update %s\n", success ? "successful" : "failed");
+    otaInProgress = false;
+    otaSuccess = success;
+
+    if (success) {
+        Serial.println("OTA completed successfully - will restart in 3 seconds");
+        shouldTriggerOTAComplete = true;
+    } else {
+        Serial.println("OTA failed");
+    }
 }
 
 // =============================================

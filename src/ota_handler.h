@@ -17,6 +17,16 @@ private:
     bool isRunning;
     unsigned long lastOTACheck;
 
+    // OTA Progress tracking
+    bool otaInProgress;
+    unsigned int otaProgress;
+    unsigned int otaTotal;
+    bool otaSuccess;
+
+    // State trigger flags
+    bool shouldTriggerOTAProgress;
+    bool shouldTriggerOTAComplete;
+
     // OTA Configuration
     static const char* otaUsername;
     static const char* otaPassword;
@@ -36,6 +46,25 @@ public:
     // OTA Management
     void handleOTA();
     bool isOTARunning() const { return isRunning; }
+
+    // OTA Progress callbacks (to be called from ElegantOTA)
+    void onOTAStart(unsigned long fileSize = 0);
+    void onOTAProgress(unsigned int progress, unsigned int total);
+    void onOTAEnd(bool success);
+
+    // OTA Progress getters
+    bool isOTAInProgress() const { return otaInProgress; }
+    unsigned int getOTAProgress() const { return otaProgress; }
+    unsigned int getOTATotal() const { return otaTotal; }
+    bool isOTASuccess() const { return otaSuccess; }
+
+    // State trigger getters
+    bool shouldTriggerOTAProgressState() const { return shouldTriggerOTAProgress; }
+    bool shouldTriggerOTACompleteState() const { return shouldTriggerOTAComplete; }
+
+    // State trigger resetters
+    void resetOTAProgressTrigger() { shouldTriggerOTAProgress = false; }
+    void resetOTACompleteTrigger() { shouldTriggerOTAComplete = false; }
 
     // Status and information
     String getOTAStatus();

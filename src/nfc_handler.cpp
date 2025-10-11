@@ -325,7 +325,7 @@ int getBufferSize(int messageLength)
   {
     bufferSize += LONG_TLV_SIZE + 1;
   }
-  if (bufferSize % BLOCK_SIZE != 0)
+  if (bufferSize % BLOCK_SIZE != 0 && BLOCK_SIZE > 0)
   {
     bufferSize = ((bufferSize / BLOCK_SIZE) + 1) * BLOCK_SIZE;
   }

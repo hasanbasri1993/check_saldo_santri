@@ -113,7 +113,7 @@ void WiFiHandler::setAPCredentials(const char* name, const char* password) {
 }
 
 void WiFiHandler::setWiFiManagerTimeout(unsigned long timeoutMs) {
-    wifiManager.setConfigPortalTimeout(timeoutMs / 1000);  // Convert to seconds
+    wifiManager.setConfigPortalTimeout(timeoutMs > 0 ? timeoutMs / 1000 : 180);  // Convert to seconds, min 180s
 }
 
 void WiFiHandler::printWiFiStatus() {
@@ -149,6 +149,7 @@ void WiFiHandler::onWiFiConnected() {
 
     display.showCustomMessage("WiFi Connected", getWiFiSSID());
     buzzer.playSuccess();
+    delay(3000);  // Show WiFi connected message for 3 seconds only
 
     isConnected = true;
     connectionStartTime = millis();
