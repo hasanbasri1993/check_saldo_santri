@@ -31,6 +31,7 @@
 // GET /api/v1/santri/validate?id_card={uid}&id_santri={santri_id}&id_device={mac_address}
 
 // OTA (Over-The-Air) Update Configuration:
+// OTA runs in background after WiFi connection (no LCD display)
 // Default OTA URL: http://<device_ip>:8080/update
 // Username: admin
 // Password: santri123

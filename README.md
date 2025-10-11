@@ -35,7 +35,7 @@ Sistem pembaca kartu santri berbasis ESP32 dengan fitur Over-The-Air (OTA) updat
 ## OTA (Over-The-Air) Update
 
 ### Setup OTA
-1. Device akan menampilkan "OTA Active" di LCD setelah WiFi tersambung
+1. OTA berjalan di background setelah WiFi tersambung (tidak mengganggu interface kartu)
 2. Serial monitor akan menunjukkan URL OTA: `http://[device_ip]:8080/`
 
 ### Cara Update Firmware

@@ -299,13 +299,12 @@ bool initializeSystem() {
         delay(3000);
     }
 
-    // Initialize OTA after WiFi is connected
+    // Initialize OTA after WiFi is connected (run in background)
     if (wifiHandler.isWiFiConnected()) {
         Serial.println("Starting OTA service...");
         if (otaHandler.begin()) {
             Serial.println("OTA service started successfully");
-            display.showCustomMessage("OTA Active", "http://" + WiFi.localIP().toString() + ":8080");
-            delay(2000);
+            // OTA runs in background without disturbing card reading interface
         } else {
             Serial.println("Failed to start OTA service");
         }
@@ -326,10 +325,7 @@ void performSystemCheck() {
             Serial.println("Server connection test failed");
         }
 
-        // Show OTA status periodically
-        if (otaHandler.isOTARunning()) {
-            Serial.println("OTA Status: " + getOTAInfo());
-        }
+        // OTA status is available via web interface, no need to show on LCD
 
         lastActivity = millis();
     }
