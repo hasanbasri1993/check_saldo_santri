@@ -9,6 +9,7 @@
 #include "api_client.h"
 #include "input_handler.h"
 #include "buzzer_feedback.h"
+#include "ota_handler.h"
 
 // =============================================
 // GLOBAL VARIABLES
@@ -78,6 +79,7 @@ void loop() {
     display.update();
     inputHandler.update();
     buzzer.update();
+    otaHandler.update();
 
     // Handle state machine
     handleStateMachine();
@@ -297,6 +299,18 @@ bool initializeSystem() {
         delay(3000);
     }
 
+    // Initialize OTA after WiFi is connected
+    if (wifiHandler.isWiFiConnected()) {
+        Serial.println("Starting OTA service...");
+        if (otaHandler.begin()) {
+            Serial.println("OTA service started successfully");
+            display.showCustomMessage("OTA Active", "http://" + WiFi.localIP().toString() + ":8080");
+            delay(2000);
+        } else {
+            Serial.println("Failed to start OTA service");
+        }
+    }
+
     return true;
 }
 
@@ -310,6 +324,11 @@ void performSystemCheck() {
 
         if (!apiClient.testConnection()) {
             Serial.println("Server connection test failed");
+        }
+
+        // Show OTA status periodically
+        if (otaHandler.isOTARunning()) {
+            Serial.println("OTA Status: " + getOTAInfo());
         }
 
         lastActivity = millis();

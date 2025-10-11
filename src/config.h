@@ -30,6 +30,12 @@
 // Note: Card validation now uses query parameters:
 // GET /api/v1/santri/validate?id_card={uid}&id_santri={santri_id}&id_device={mac_address}
 
+// OTA (Over-The-Air) Update Configuration:
+// Default OTA URL: http://<device_ip>:8080/update
+// Username: admin
+// Password: santri123
+// Upload .bin file through web interface for wireless firmware updates
+
 // Endpoints
 #define VALIDATE_UID_ENDPOINT   "/check"
 #define LOG_ACTIVITY_ENDPOINT   "/santri/visitor_santri/"
