@@ -18,7 +18,7 @@
 #define BUTTON_3_PIN    5   // GPIO5 for Button 3 (Institution 3)
 
 // Buzzer Pin
-#define BUZZER_PIN      19  // GPIO19 for Buzzer
+#define BUZZER_PIN      7  // GPIO19 for Buzzer
 
 // =============================================
 // API CONFIGURATION
