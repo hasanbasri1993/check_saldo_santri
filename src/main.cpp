@@ -259,6 +259,11 @@ void handleValidatingState()
 {
     static bool validationStarted = false;
 
+    // Reset validationStarted when entering this state
+    if (millis() - stateStartTime < 100) {
+        validationStarted = false;
+    }
+
     if (!validationStarted)
     {
         display.showValidating();
@@ -343,25 +348,22 @@ void handleWaitingForInputState()
 
     // Check for timeout (5 seconds) - simplified logic
     unsigned long elapsed = millis() - timeoutStartTime;
-    // if (elapsed >= 5000) { // 5 seconds timeout
-    Serial.println("Timeout reached - auto-selecting button 1");
+    if (elapsed >= 5000) { // 5 seconds timeout
+        Serial.println("Timeout reached - auto-selecting button 1");
 
-    // Stop scrolling
-    display.stopScrolling();
+        // Stop scrolling
+        display.stopScrolling();
 
-    // Show auto-selection message briefly
-    display.showCustomMessage("Auto Select", "Button 1");
+        // Show auto-selection message briefly
+        display.showCustomMessage("Auto Select", "Button 1");
 
-    // Wait 1 second then transition
-    vTaskDelay(pdMS_TO_TICKS(1000));
+        // Simulate button 1 press
+        buzzer.playClick();
+        Serial.println("Auto-selected button 1 - transitioning to SUBMITTING");
 
-    // Simulate button 1 press
-    buzzer.playClick();
-    Serial.println("Auto-selected button 1 - transitioning to SUBMITTING");
-
-    transitionToState(SUBMITTING);
-    return;
-    //}
+        transitionToState(SUBMITTING);
+        return;
+    }
 
     // Check for button press from queue
     InputEvent inputEvent;
@@ -381,6 +383,11 @@ void handleWaitingForInputState()
 void handleSubmittingState()
 {
     static bool submissionStarted = false;
+
+    // Reset submissionStarted when entering this state
+    if (millis() - stateStartTime < 100) {
+        submissionStarted = false;
+    }
 
     if (!submissionStarted)
     {
@@ -492,7 +499,7 @@ void handleOTAProgressState()
         {
             // OTA failed, go back to idle
             display.showCustomMessage("OTA Failed", "Check Serial");
-            delay(2000);
+            // Non-blocking delay - let state machine handle timing
             transitionToState(IDLE);
         }
     }
@@ -533,6 +540,17 @@ void transitionToState(SystemState newState)
         waitingAutoSelectShown = false;
         waitingLastStateTransition = 0;
         Serial.println("Reset WAITING_FOR_INPUT variables");
+    }
+    
+    // Reset static variables for other states
+    if (newState == VALIDATING) {
+        // Reset validation state
+        Serial.println("Reset VALIDATING state");
+    }
+    
+    if (newState == SUBMITTING) {
+        // Reset submission state
+        Serial.println("Reset SUBMITTING state");
     }
 
     // Send state change event to queue
@@ -587,7 +605,7 @@ bool initializeSystem()
         display.showWiFiError();
         buzzer.playError();
         setLEDState(LED_WIFI_ERROR);
-        delay(3000);
+        // Non-blocking - WiFi will retry automatically
     }
     else
     {

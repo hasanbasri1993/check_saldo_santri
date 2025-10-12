@@ -20,7 +20,7 @@ private:
     // Animation variables
     uint8_t breathingBrightness;
     bool breathingDirection;
-    uint8_t rainbowHue;
+    uint16_t rainbowHue; // Changed to 16-bit for HSV like in neo.md
     bool blinkState;
     
     // LED control variables
@@ -56,6 +56,7 @@ public:
     // LED control functions
     void setLED(bool on, uint8_t brightness = 255);
     void setLEDColor(uint8_t r, uint8_t g, uint8_t b);
+    void setLEDColorHSV(uint16_t hue, uint8_t saturation, uint8_t value);
     
     // Animation helpers
     void updateBreathing();
