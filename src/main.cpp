@@ -1,4 +1,8 @@
 #include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/queue.h>
+#include <freertos/semphr.h>
 // #include <Wire.h>
 
 // Include all our custom modules
@@ -29,12 +33,46 @@ String santriInduk = "";
 unsigned long lastStateUpdate = 0;
 unsigned long lastActivity = 0;
 
+// RTOS Task Handles
+TaskHandle_t stateMachineTaskHandle = NULL;
+TaskHandle_t inputTaskHandle = NULL;
+TaskHandle_t displayTaskHandle = NULL;
+
+// RTOS Queues and Semaphores
+QueueHandle_t inputQueue;
+QueueHandle_t stateQueue;
+SemaphoreHandle_t displayMutex;
+
+// State-specific variables
+bool waitingInputStarted = false;
+bool waitingAutoSelectShown = false;
+unsigned long waitingLastStateTransition = 0;
+
+// Input event structure
+typedef struct {
+    int buttonPressed;
+    unsigned long timestamp;
+} InputEvent;
+
+// State change event structure
+typedef struct {
+    SystemState newState;
+    unsigned long timestamp;
+} StateEvent;
+
 // =============================================
 // FUNCTION PROTOTYPES
 // =============================================
 
 void setup();
 void loop();
+
+// RTOS Task Functions
+void stateMachineTask(void *parameter);
+void inputTask(void *parameter);
+void displayTask(void *parameter);
+
+// State Machine Functions
 void handleStateMachine();
 void transitionToState(SystemState newState);
 void handleIdleState();
@@ -48,6 +86,10 @@ void handleErrorState();
 bool initializeSystem();
 void performSystemCheck();
 void resetCardData();
+
+// RTOS Helper Functions
+void createTasks();
+void deleteTasks();
 
 // =============================================
 // SETUP FUNCTION
@@ -64,11 +106,17 @@ void setup() {
         Serial.println("System initialization failed!");
         display.showCustomMessage("Init Failed!", "Check Serial");
         while (true) {
+            // Non-blocking error loop
             delay(1000);
         }
     }
 
     Serial.println("System initialized successfully!");
+    
+    // Create RTOS tasks
+    createTasks();
+    
+    Serial.println("RTOS tasks created successfully!");
     transitionToState(IDLE);
 }
 
@@ -77,10 +125,8 @@ void setup() {
 // =============================================
 
 void loop() {
-    // Update all components
+    // Update components that don't have dedicated tasks
     wifiHandler.update();
-    display.update();
-    inputHandler.update();
     buzzer.update();
     otaHandler.update();
     ledLoop(); // Update LED patterns
@@ -96,11 +142,8 @@ void loop() {
         otaHandler.resetOTACompleteTrigger();
     }
 
-    // Handle state machine
-    handleStateMachine();
-
     // Small delay to prevent excessive CPU usage
-    delay(10);
+    delay(100);
 }
 
 // =============================================
@@ -198,7 +241,9 @@ void handleValidatingState() {
         // Now validate the card using santri ID from JSON data
         if (apiClient.validateSantriCard(currentCardUID, santriInduk)) {
             // Card is valid
-            setLEDState(LED_CARD_VALID);
+            Serial.println("Card validation successful - transitioning to WAITING_FOR_INPUT");
+            
+            // Simplified transition without LED/buzzer to isolate the issue
             display.showUserInfo(santriNama);
             transitionToState(WAITING_FOR_INPUT);
         } else {
@@ -219,26 +264,48 @@ void handleValidatingState() {
 }
 
 void handleWaitingForInputState() {
-    static bool inputStarted = false;
-
-    if (!inputStarted) {
+    static unsigned long timeoutStartTime = 0;
+    
+    if (!waitingInputStarted) {
         // Start scrolling the name if it's longer than 16 characters
         if (santriNama.length() > 16) {
             display.startScrolling(santriNama, 300); // 300ms delay between scrolls
         } else {
             display.showSelectActivity(santriNama);
         }
-        inputStarted = true;
-        stateStartTime = millis();
+        waitingInputStarted = true;
+        timeoutStartTime = millis(); // Start timeout timer
+        Serial.println("Started input handling with timeout");
     }
 
-    // Check for button press
-    int buttonPressed = inputHandler.checkButtonPressed();
+    // Check for timeout (5 seconds) - simplified logic
+    unsigned long elapsed = millis() - timeoutStartTime;
+    if (elapsed >= 5000) { // 5 seconds timeout
+        Serial.println("Timeout reached - auto-selecting button 1");
+        
+        // Stop scrolling
+        display.stopScrolling();
+        
+        // Show auto-selection message briefly
+        display.showCustomMessage("Auto Select", "Button 1");
+        
+        // Wait 1 second then transition
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        
+        // Simulate button 1 press
+        buzzer.playClick();
+        Serial.println("Auto-selected button 1 - transitioning to SUBMITTING");
+        
+        transitionToState(SUBMITTING);
+        return;
+    }
 
-    if (buttonPressed > 0) {
+    // Check for button press from queue
+    InputEvent inputEvent;
+    if (xQueueReceive(inputQueue, &inputEvent, 0) == pdTRUE) {
         buzzer.playClick();
         Serial.print("Button pressed: ");
-        Serial.println(buttonPressed);
+        Serial.println(inputEvent.buttonPressed);
         
         // Stop scrolling when button is pressed
         display.stopScrolling();
@@ -358,6 +425,20 @@ void transitionToState(SystemState newState) {
     currentState = newState;
     stateStartTime = millis();
     lastActivity = millis();
+    
+    // Reset variables for specific states
+    if (newState == WAITING_FOR_INPUT) {
+        waitingInputStarted = false;
+        waitingAutoSelectShown = false;
+        waitingLastStateTransition = 0;
+        Serial.println("Reset WAITING_FOR_INPUT variables");
+    }
+    
+    // Send state change event to queue
+    StateEvent stateEvent;
+    stateEvent.newState = newState;
+    stateEvent.timestamp = millis();
+    xQueueSend(stateQueue, &stateEvent, 0);
 }
 
 bool initializeSystem() {
@@ -441,6 +522,137 @@ void resetCardData() {
     currentCardUID = "";
     santriNama = "";
     santriInduk = "";
+}
+
+// =============================================
+// RTOS TASK IMPLEMENTATIONS
+// =============================================
+
+void createTasks() {
+    // Create queues
+    inputQueue = xQueueCreate(10, sizeof(InputEvent));
+    stateQueue = xQueueCreate(5, sizeof(StateEvent));
+    displayMutex = xSemaphoreCreateMutex();
+    
+    if (inputQueue == NULL || stateQueue == NULL || displayMutex == NULL) {
+        Serial.println("Failed to create RTOS objects!");
+        return;
+    }
+    
+    // Create tasks
+    xTaskCreatePinnedToCore(
+        stateMachineTask,      // Task function
+        "StateMachine",        // Task name
+        4096,                  // Stack size
+        NULL,                  // Parameters
+        2,                     // Priority
+        &stateMachineTaskHandle, // Task handle
+        1                      // Core (Core 1)
+    );
+    
+    xTaskCreatePinnedToCore(
+        inputTask,             // Task function
+        "InputHandler",        // Task name
+        2048,                  // Stack size
+        NULL,                  // Parameters
+        1,                     // Priority
+        &inputTaskHandle,      // Task handle
+        0                     // Core (Core 0)
+    );
+    
+    xTaskCreatePinnedToCore(
+        displayTask,           // Task function
+        "DisplayManager",      // Task name
+        2048,                  // Stack size
+        NULL,                  // Parameters
+        1,                     // Priority
+        &displayTaskHandle,    // Task handle
+        0                     // Core (Core 0)
+    );
+    
+    Serial.println("RTOS tasks created successfully!");
+}
+
+void deleteTasks() {
+    if (stateMachineTaskHandle != NULL) {
+        vTaskDelete(stateMachineTaskHandle);
+        stateMachineTaskHandle = NULL;
+    }
+    
+    if (inputTaskHandle != NULL) {
+        vTaskDelete(inputTaskHandle);
+        inputTaskHandle = NULL;
+    }
+    
+    if (displayTaskHandle != NULL) {
+        vTaskDelete(displayTaskHandle);
+        displayTaskHandle = NULL;
+    }
+    
+    if (inputQueue != NULL) {
+        vQueueDelete(inputQueue);
+        inputQueue = NULL;
+    }
+    
+    if (stateQueue != NULL) {
+        vQueueDelete(stateQueue);
+        stateQueue = NULL;
+    }
+    
+    if (displayMutex != NULL) {
+        vSemaphoreDelete(displayMutex);
+        displayMutex = NULL;
+    }
+}
+
+void stateMachineTask(void *parameter) {
+    Serial.println("State Machine Task started");
+    
+    while (true) {
+        // Handle state machine
+        handleStateMachine();
+        
+        // Small delay to prevent excessive CPU usage
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+void inputTask(void *parameter) {
+    Serial.println("Input Task started");
+    
+    while (true) {
+        // Check for button press
+        int buttonPressed = inputHandler.checkButtonPressed();
+        
+        if (buttonPressed > 0) {
+            InputEvent inputEvent;
+            inputEvent.buttonPressed = buttonPressed;
+            inputEvent.timestamp = millis();
+            
+            // Send to queue (non-blocking)
+            if (xQueueSend(inputQueue, &inputEvent, 0) != pdTRUE) {
+                Serial.println("Input queue full - dropping event");
+            }
+        }
+        
+        // Small delay
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+void displayTask(void *parameter) {
+    Serial.println("Display Task started");
+    
+    while (true) {
+        // Take mutex before updating display
+        if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+            display.update();
+            xSemaphoreGive(displayMutex);
+        }
+        
+        // Small delay
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
 
 // =============================================

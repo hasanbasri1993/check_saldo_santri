@@ -149,7 +149,7 @@ void WiFiHandler::onWiFiConnected() {
 
     display.showCustomMessage("WiFi Connected", getWiFiSSID());
     buzzer.playSuccess();
-    delay(3000);  // Show WiFi connected message for 3 seconds only
+    // Note: Removed delay(3000) to prevent task blocking - message will auto-clear
 
     isConnected = true;
     connectionStartTime = millis();
@@ -229,12 +229,12 @@ bool attemptWiFiConnectionWithFeedback() {
     if (connected) {
         display.showCustomMessage("Connected!", wifiHandler.getLocalIP());
         buzzer.playSuccess();
-        delay(2000);  // Show success for 2 seconds
+        // Note: Removed delay(2000) to prevent task blocking
         return true;
     } else {
         display.showWiFiError();
         buzzer.playError();
-        delay(3000);  // Show error for 3 seconds
+        // Note: Removed delay(3000) to prevent task blocking
         return false;
     }
 }

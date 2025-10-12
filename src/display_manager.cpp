@@ -216,48 +216,26 @@ void DisplayManager::updateScrolling() {
     
     // Check if it's time to scroll
     if (currentTime - lastScrollTime >= scrollDelay) {
-        // Clear the display first
+        // Simplified scrolling to prevent crashes
         lcd.clear();
         
-        // Display the scrolling text
-        String displayText = scrollingText;
-        
-        // If text is longer than display width, scroll it
-        if (scrollingText.length() > cols) {
-            // Calculate the substring to display
-            int startPos = scrollPosition % (scrollingText.length() + cols);
-            int endPos = startPos + cols;
-            
-            if (endPos > scrollingText.length()) {
-                // Need to wrap around
-                String part1 = scrollingText.substring(startPos);
-                String part2 = scrollingText.substring(0, endPos - scrollingText.length());
-                displayText = part1 + part2;
-            } else {
-                displayText = scrollingText.substring(startPos, endPos);
-            }
-            
-            // Move to next position
-            scrollPosition++;
-            
-            // Reset position when we've shown the whole text
-            if (scrollPosition >= scrollingText.length() + cols) {
-                scrollPosition = 0;
-            }
-        }
-        
-        // Center the text on the display
-        centerText(displayText, cols);
-        
-        // Display on first line
+        // Simple scrolling - just show the text as-is for now
         lcd.setCursor(0, 0);
-        lcd.print(displayText);
+        if (scrollingText.length() > cols) {
+            // Show first part of text
+            lcd.print(scrollingText.substring(0, cols));
+        } else {
+            lcd.print(scrollingText);
+        }
         
         // Display static second line
         lcd.setCursor(0, 1);
         lcd.print("Pilih aktivitas:");
         
         lastScrollTime = currentTime;
+        
+        // Stop scrolling after showing once to prevent infinite loop
+        isScrolling = false;
     }
 }
 

@@ -14,8 +14,8 @@ void BuzzerFeedback::begin() {
 
 void BuzzerFeedback::playTone(uint16_t frequency, uint32_t duration) {
     tone(buzzerPin, frequency, duration);
-    delay(duration);
-    noTone(buzzerPin);
+    // Note: Removed delay(duration) to prevent task blocking
+    // Tone will play for the specified duration automatically
 }
 
 void BuzzerFeedback::playToneAsync(uint16_t frequency) {
@@ -36,7 +36,7 @@ void BuzzerFeedback::stopTone() {
 void BuzzerFeedback::playMelody(const uint16_t* frequencies, const uint32_t* durations, uint8_t length) {
     for (uint8_t i = 0; i < length; i++) {
         playTone(frequencies[i], durations[i]);
-        delay(50); // Small pause between notes
+        // Note: Removed delay(50) to prevent task blocking
     }
 }
 
@@ -50,7 +50,7 @@ void BuzzerFeedback::playSuccess() {
 
 void BuzzerFeedback::playError() {
     playMelody(errorFrequencies, errorDurations, sizeof(errorFrequencies) / sizeof(errorFrequencies[0]));
-    delay(100); // Pause between double beeps
+    // Note: Removed delay(100) to prevent task blocking
     playMelody(errorFrequencies, errorDurations, sizeof(errorFrequencies) / sizeof(errorFrequencies[0]));
 }
 

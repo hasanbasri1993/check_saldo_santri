@@ -45,32 +45,25 @@ bool SimpleLED::init() {
     Serial.println("Built-in RGB LED (WS2812B) initialized successfully");
     Serial.printf("LED Pin: %d (Built-in RGB LED)\n", LED_PIN);
     
-    // Test LED with different colors
+    // Test LED with different colors (non-blocking)
     Serial.println("Testing built-in RGB LED...");
     
-    // Test Red
+    // Quick test sequence without blocking delays
     Serial.println("Testing RED...");
     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
     pixels.show();
-    delay(1000);
     
-    // Test Green
     Serial.println("Testing GREEN...");
     pixels.setPixelColor(0, pixels.Color(0, 255, 0));
     pixels.show();
-    delay(1000);
     
-    // Test Blue
     Serial.println("Testing BLUE...");
     pixels.setPixelColor(0, pixels.Color(0, 0, 255));
     pixels.show();
-    delay(1000);
     
-    // Test White
     Serial.println("Testing WHITE...");
     pixels.setPixelColor(0, pixels.Color(255, 255, 255));
     pixels.show();
-    delay(1000);
     
     // Turn off
     pixels.clear();
