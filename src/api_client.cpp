@@ -210,7 +210,7 @@ String APIClient::getResponseBody()
 
 bool APIClient::parseValidationResponse(const String &response, bool &isValid)
 {
-    DynamicJsonDocument doc(256);
+    JsonDocument doc;
 
     DeserializationError error = deserializeJson(doc, response);
 
