@@ -20,6 +20,9 @@
 // Buzzer Pin
 #define BUZZER_PIN      7  // GPIO19 for Buzzer
 
+
+#define VERSION "1.0.0"
+#define DEVICE_NAME "Santri Card Reader"
 // =============================================
 // API CONFIGURATION
 // =============================================
@@ -30,6 +33,10 @@
 // Note: Card validation now uses query parameters:
 // GET /api/v1/santri/validate?id_card={uid}&id_santri={santri_id}&id_device={mac_address}
 
+// Endpoints
+#define VALIDATE_UID_ENDPOINT   "/check"
+#define LOG_ACTIVITY_ENDPOINT   "/santri/visitor_santri/"
+
 // OTA (Over-The-Air) Update Configuration:
 // OTA runs in background after WiFi connection (no LCD display)
 // Default OTA URL: http://<device_ip>:8080/update
@@ -37,9 +44,8 @@
 // Password: santri123
 // Upload .bin file through web interface for wireless firmware updates
 
-// Endpoints
-#define VALIDATE_UID_ENDPOINT   "/check"
-#define LOG_ACTIVITY_ENDPOINT   "/santri/visitor_santri/"
+#define OTA_USERNAME "admin"
+#define OTA_PASSWORD "santri123"
 
 // =============================================
 // TIMING CONSTANTS (milliseconds)

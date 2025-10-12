@@ -35,7 +35,6 @@ private:
 
     // Helper methods
     void setupWebServer();
-    void setupOTARoutes();
     String getDeviceInfo();
 
 public:
@@ -46,7 +45,6 @@ public:
     void end();
 
     // OTA Management
-    void handleOTA();
     bool isOTARunning() const { return isRunning; }
 
     // OTA Progress callbacks (to be called from ElegantOTA)
@@ -68,15 +66,8 @@ public:
     void resetOTAProgressTrigger() { shouldTriggerOTAProgress = false; }
     void resetOTACompleteTrigger() { shouldTriggerOTAComplete = false; }
 
-    // Status and information
-    String getOTAStatus();
-    uint16_t getOTAPort() const;
-
     // Update method (call in main loop)
     void update();
-
-    // Security
-    void setOTACredentials(const char* username, const char* password);
 };
 
 // =============================================
