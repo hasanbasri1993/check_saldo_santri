@@ -96,11 +96,6 @@ bool APIClient::logSantriActivity(const String &memberID, int institution)
         return false;
     }
 
-    // Prepare form data
-    String payload = "memberID=" + memberID +
-                     "&counter=1" +
-                     "&institution=" + String(institution);
-
     String url = buildURL(LOG_ACTIVITY_ENDPOINT);
 
     Serial.print("Logging activity for member: ");
@@ -110,9 +105,44 @@ bool APIClient::logSantriActivity(const String &memberID, int institution)
     Serial.print("Request URL: ");
     Serial.println(url);
 
-    int responseCode = sendPOSTRequest(url, payload);
+    // Initialize HTTP client
+    httpClient.setTimeout(requestTimeout);
+    if (!httpClient.begin(url))
+    {
+        lastError = "Failed to initialize HTTP POST request";
+        return false;
+    }
 
-    if (responseCode == 200 || responseCode == 201)
+    // Set multipart/form-data header
+    httpClient.addHeader("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW");
+
+    // Create multipart form data
+    String boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+    String payload = "--" + boundary + "\r\n";
+    payload += "Content-Disposition: form-data; name=\"memberID\"\r\n\r\n";
+    payload += memberID + "\r\n";
+    payload += "--" + boundary + "\r\n";
+    payload += "Content-Disposition: form-data; name=\"counter\"\r\n\r\n";
+    payload += "1\r\n";
+    payload += "--" + boundary + "\r\n";
+    payload += "Content-Disposition: form-data; name=\"institution\"\r\n\r\n";
+    payload += String(institution) + "\r\n";
+    payload += "--" + boundary + "--\r\n";
+
+    Serial.print("Multipart payload: ");
+    Serial.println(payload);
+
+    lastResponseCode = httpClient.POST(payload);
+    lastResponseBody = getResponseBody();
+
+    httpClient.end();
+
+    Serial.print("POST Response Code: ");
+    Serial.println(lastResponseCode);
+    Serial.print("Response Body: ");
+    Serial.println(lastResponseBody);
+
+    if (lastResponseCode == 200 || lastResponseCode == 201)
     {
         bool success;
         if (parseActivityResponse(lastResponseBody, success))
@@ -129,7 +159,7 @@ bool APIClient::logSantriActivity(const String &memberID, int institution)
     }
     else
     {
-        lastError = "HTTP request failed with code: " + String(responseCode);
+        lastError = "HTTP request failed with code: " + String(lastResponseCode);
         return false;
     }
 }
