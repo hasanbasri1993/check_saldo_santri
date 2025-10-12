@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <ElegantOTA.h>
+
 #include <Update.h>
 #include "config.h"
 

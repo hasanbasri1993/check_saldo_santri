@@ -26,7 +26,28 @@ bool OTAHandler::begin(uint16_t port) {
 
     // Setup web server and OTA routes
     setupWebServer();
-    setupOTARoutes();
+    //setupOTARoutes();
+    ElegantOTA.setAutoReboot(true);
+
+    ElegantOTA.begin(server);
+
+    ElegantOTA.onProgress([](size_t current, size_t final) {
+        Serial.printf("Progress: %u%%\n", (current * 100) / final);
+    });
+    ElegantOTA.onEnd([](bool success) {
+        if (success) {
+          Serial.println("OTA update completed successfully.");
+          unsigned long _reboot_request_millis = 0;
+
+          if (millis() - _reboot_request_millis > 2000) {
+              ESP.restart();
+          }
+    
+        } else {
+          Serial.println("OTA update failed.");
+          // Add failure handling here.
+        }
+    });
 
     // Start server
     server->begin();
@@ -222,6 +243,8 @@ uint16_t OTAHandler::getOTAPort() const {
 void OTAHandler::update() {
     // OTA runs in background via AsyncWebServer
     // No need for continuous updates here
+
+    ElegantOTA.loop();
 }
 
 void OTAHandler::setOTACredentials(const char* username, const char* password) {
