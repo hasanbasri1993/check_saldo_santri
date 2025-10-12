@@ -74,6 +74,7 @@ public:
 private:
     void initializeButtons();
     void updateButtons();
+    void debugButtonStates();
 };
 
 // =============================================

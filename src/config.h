@@ -13,7 +13,7 @@
 #define LCD_I2C_ADDR    0x27
 
 // Button Pins
-#define BUTTON_1_PIN    15  // GPIO15 for Button 1 (Institution 1)
+#define BUTTON_1_PIN    45  // GPIO45 for Button 1 (Built-in Key)
 #define BUTTON_2_PIN    4   // GPIO4 for Button 2 (Institution 2)
 #define BUTTON_3_PIN    5   // GPIO5 for Button 3 (Institution 3)
 
@@ -21,7 +21,7 @@
 #define BUZZER_PIN      7  // GPIO19 for Buzzer
 
 // LED Built-in RGB Pin (WeAct Studio ESP32-S3)
-#define LED_PIN         48 // GPIO48 for built-in RGB LED
+#define LED_PIN         48 // GPIO48 for built-in RGB LED (hardwired)
 #define LED_COUNT       1  // Number of LEDs (built-in RGB LED)
 
 

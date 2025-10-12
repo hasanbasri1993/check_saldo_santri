@@ -47,6 +47,7 @@ SemaphoreHandle_t displayMutex;
 bool waitingInputStarted = false;
 bool waitingAutoSelectShown = false;
 unsigned long waitingLastStateTransition = 0;
+int institution = INSTITUTION_1; // Global institution variable
 
 // Performance timing variables
 unsigned long cardDetectionTime = 0;
@@ -54,6 +55,8 @@ unsigned long nfcReadStartTime = 0;
 unsigned long nfcReadEndTime = 0;
 unsigned long apiValidationStartTime = 0;
 unsigned long apiValidationEndTime = 0;
+unsigned long userInputStartTime = 0;
+unsigned long userInputEndTime = 0;
 unsigned long apiLoggingStartTime = 0;
 unsigned long apiLoggingEndTime = 0;
 
@@ -332,6 +335,9 @@ void handleWaitingForInputState()
 
     if (!waitingInputStarted)
     {
+        // Start timing for user input
+        userInputStartTime = millis();
+        
         // Start scrolling the name if it's longer than 16 characters
         if (santriNama.length() > 16)
         {
@@ -351,6 +357,13 @@ void handleWaitingForInputState()
     if (elapsed >= 5000) { // 5 seconds timeout
         Serial.println("Timeout reached - auto-selecting button 1");
 
+        // End timing for user input
+        userInputEndTime = millis();
+
+        // Set institution to INSTITUTION_1 for auto-select
+        institution = INSTITUTION_1;
+        Serial.println("INSTITUTION_1 auto-selected");
+
         // Stop scrolling
         display.stopScrolling();
 
@@ -369,9 +382,26 @@ void handleWaitingForInputState()
     InputEvent inputEvent;
     if (xQueueReceive(inputQueue, &inputEvent, 0) == pdTRUE)
     {
+        Serial.printf("State Machine: Received button %d from queue\n", inputEvent.buttonPressed);
+        
+        // End timing for user input
+        userInputEndTime = millis();
+        
         buzzer.playClick();
         Serial.print("Button pressed: ");
         Serial.println(inputEvent.buttonPressed);
+
+        // Set institution based on button pressed
+        if (inputEvent.buttonPressed == 1) {
+            institution = INSTITUTION_1;
+            Serial.println("INSTITUTION_1 selected");
+        } else if (inputEvent.buttonPressed == 2) {
+            institution = INSTITUTION_2;
+            Serial.println("INSTITUTION_2 selected");
+        } else if (inputEvent.buttonPressed == 3) {
+            institution = INSTITUTION_3;
+            Serial.println("INSTITUTION_3 selected");
+        }
 
         // Stop scrolling when button is pressed
         display.stopScrolling();
@@ -397,10 +427,7 @@ void handleSubmittingState()
         stateStartTime = millis();
     }
 
-    // Submit activity (this is a simplified version - in real implementation,
-    // you'd want to check which button was pressed and get that info)
-    int institution = INSTITUTION_1; // Default to institution 1
-
+    // Submit activity using the institution selected by user
     apiLoggingStartTime = millis();
     if (apiClient.logSantriActivity(santriInduk, institution))
     {
@@ -681,7 +708,7 @@ void createTasks()
     xTaskCreatePinnedToCore(
         stateMachineTask,        // Task function
         "StateMachine",          // Task name
-        4096,                    // Stack size
+        8192,                    // Stack size (increased from 4096)
         NULL,                    // Parameters
         2,                       // Priority
         &stateMachineTaskHandle, // Task handle
@@ -691,7 +718,7 @@ void createTasks()
     xTaskCreatePinnedToCore(
         inputTask,        // Task function
         "InputHandler",   // Task name
-        2048,             // Stack size
+        4096,             // Stack size (increased from 2048)
         NULL,             // Parameters
         1,                // Priority
         &inputTaskHandle, // Task handle
@@ -775,6 +802,8 @@ void inputTask(void *parameter)
 
         if (buttonPressed > 0)
         {
+            Serial.printf("Input Task: Button %d pressed, sending to queue\n", buttonPressed);
+            
             InputEvent inputEvent;
             inputEvent.buttonPressed = buttonPressed;
             inputEvent.timestamp = millis();
@@ -784,10 +813,14 @@ void inputTask(void *parameter)
             {
                 Serial.println("Input queue full - dropping event");
             }
+            else
+            {
+                Serial.printf("Input Task: Event sent to queue successfully\n");
+            }
         }
 
-        // Small delay
-        vTaskDelay(pdMS_TO_TICKS(50));
+        // Small delay to reduce CPU usage
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -833,6 +866,10 @@ void printPerformanceReport()
     Serial.print(apiValidationEndTime - apiValidationStartTime);
     Serial.println(" ms");
     
+    Serial.print("User input time: ");
+    Serial.print(userInputEndTime - userInputStartTime);
+    Serial.println(" ms");
+    
     Serial.print("API logging time: ");
     Serial.print(apiLoggingEndTime - apiLoggingStartTime);
     Serial.println(" ms");
@@ -844,6 +881,7 @@ void printPerformanceReport()
         
         float nfcPercent = ((float)(nfcReadEndTime - nfcReadStartTime) / totalTime) * 100;
         float validationPercent = ((float)(apiValidationEndTime - apiValidationStartTime) / totalTime) * 100;
+        float inputPercent = ((float)(userInputEndTime - userInputStartTime) / totalTime) * 100;
         float loggingPercent = ((float)(apiLoggingEndTime - apiLoggingStartTime) / totalTime) * 100;
         
         Serial.print("NFC read: ");
@@ -852,6 +890,10 @@ void printPerformanceReport()
         
         Serial.print("API validation: ");
         Serial.print(validationPercent, 1);
+        Serial.println("%");
+        
+        Serial.print("User input: ");
+        Serial.print(inputPercent, 1);
         Serial.println("%");
         
         Serial.print("API logging: ");
@@ -869,6 +911,8 @@ void resetPerformanceTimers()
     nfcReadEndTime = 0;
     apiValidationStartTime = 0;
     apiValidationEndTime = 0;
+    userInputStartTime = 0;
+    userInputEndTime = 0;
     apiLoggingStartTime = 0;
     apiLoggingEndTime = 0;
 }
