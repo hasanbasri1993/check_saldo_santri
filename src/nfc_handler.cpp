@@ -6,25 +6,25 @@
 // CLASS IMPLEMENTATION
 // =============================================
 
-
 #define BLOCK_SIZE 16
 #define LONG_TLV_SIZE 4
 #define SHORT_TLV_SIZE 2
 
-
-NFCHandler::NFCHandler(uint8_t ssPin, uint8_t clkPin, uint8_t misoPin, uint8_t mosiPin) :
-    isInitialized(false), lastCardCheck(0), cardTimeout(0) {
+NFCHandler::NFCHandler(uint8_t ssPin, uint8_t clkPin, uint8_t misoPin, uint8_t mosiPin) : isInitialized(false), lastCardCheck(0), cardTimeout(0)
+{
 
     // Initialize PN532 with I2C
     nfc = new Adafruit_PN532(I2C_SDA_PIN, I2C_SCL_PIN);
 }
 
-bool NFCHandler::begin() {
+bool NFCHandler::begin()
+{
     Serial.println("Initializing NFC Reader...");
 
     initPN532();
 
-    if (!isInitialized) {
+    if (!isInitialized)
+    {
         lastError = "Failed to initialize PN532";
         return false;
     }
@@ -33,14 +33,17 @@ bool NFCHandler::begin() {
     return true;
 }
 
-void NFCHandler::initPN532() {
-    //Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+void NFCHandler::initPN532()
+{
+    // Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
 
-    if (nfc->begin()) {
+    if (nfc->begin())
+    {
         Serial.println("PN532 found");
 
         uint32_t versiondata = nfc->getFirmwareVersion();
-        if (versiondata) {
+        if (versiondata)
+        {
             Serial.print("Found chip PN5");
             Serial.println((versiondata >> 24) & 0xFF, HEX);
             Serial.print("Firmware ver. ");
@@ -53,97 +56,134 @@ void NFCHandler::initPN532() {
 
             isInitialized = true;
             lastError = "";
-        } else {
+        }
+        else
+        {
             lastError = "Failed to get PN532 firmware version";
             Serial.println("Didn't find PN53x board");
         }
-    } else {
+    }
+    else
+    {
         lastError = "Failed to find PN532 board";
         Serial.println("Didn't find PN53x board");
     }
 }
 
-bool NFCHandler::isCardPresent() {
+bool NFCHandler::isCardPresent()
+{
     uint8_t success;
-    uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };  // Buffer to store the returned UID
-    uint8_t uidLength;  // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
+    uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
+    uint8_t uidLength;                     // Length of the UID (4 or 7 bytes depending on ISO14443A card type)
 
     success = nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
 
-    if (success) {
+    if (success)
+    {
         return true;
     }
 
     return false;
 }
 
-String NFCHandler::getCardUID() {
+String NFCHandler::getCardUID()
+{
     uint8_t success;
-    uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+    uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0};
     uint8_t uidLength;
 
     success = nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
 
-    if (success) {
+    if (success)
+    {
         return bytesToHexString(uid, uidLength);
     }
 
-    return "";  // No card present
+    return ""; // No card present
 }
 
-bool NFCHandler::readSantriData(String& nama, String& induk) {
-    uint8_t success;
-    uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+bool NFCHandler::readSantriData(String &nama, String &induk)
+{
+    int messageNfcStartIndex = 0;
+    int messageNfcLength = 0;
+    uint8_t key[6] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7};
+    uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0};
     uint8_t uidLength;
-    uint8_t data[320];  // Buffer for NDEF message
+    uint8_t data[BLOCK_SIZE];
+    uint8_t currentBlock = 4;
+    uint8_t success = nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
+    Serial.println("success: readPassiveTargetID" + String(success));
 
-    // First, get the card UID
-    success = nfc->readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength);
-
-    if (!success) {
+    if (!success)
+    {
         lastError = "No card present";
         return false;
     }
 
-    // Try to read NDEF data
-    success = nfc->ntag2xx_ReadPage(4, data);  // Start reading from page 4
+    if (uidLength == 4)
+    {
+        Serial.println("Card UID: " + bytesToHexString(uid, uidLength));
 
-    if (success) {
-        // Look for NDEF TLV (Type Length Value) structure
-        // TLV format: T (1 byte), L (1 or 3 bytes), V (L bytes)
-        uint16_t ndefStart = 0;
-        bool foundNDEF = false;
+        success = nfc->mifareclassic_AuthenticateBlock(uid, uidLength, currentBlock, 0, key);
+        Serial.println("success: mifareclassic_AuthenticateBlock" + String(success));
+        success = nfc->mifareclassic_ReadDataBlock(currentBlock, data);
+        Serial.println("success: mifareclassic_AuthenticateBlock" + String(success));
 
-        for (uint16_t i = 0; i < sizeof(data) - 2; i++) {
-            if (data[i] == 0x03) {  // NDEF Message TLV
-                ndefStart = i + 2;  // Skip T and L bytes
-                foundNDEF = true;
-                break;
-            }
-        }
-
-        if (foundNDEF) {
-            // Extract NDEF message length (simplified)
-            uint16_t ndefLength = data[ndefStart - 1];  // L byte
-            uint8_t* ndefMessage = &data[ndefStart];
-
-            // Decode NDEF message
-            return decodeNDEFMessage(ndefMessage, ndefLength, nama, induk);
-        } else {
-            lastError = "No NDEF message found on card";
+        Serial.println("data: " + bytesToHexString(data, BLOCK_SIZE));
+        Serial.println("uidLength: " + String(uidLength));
+        Serial.println("messageNfcLength: " + String(messageNfcLength));
+        Serial.println("currentBlock: " + String(currentBlock));
+        Serial.println("messageNfcStartIndex: " + String(messageNfcStartIndex));
+        if (!decodeTlv(data, messageNfcLength, messageNfcStartIndex))
+        {
+            Serial.println("error");
             return false;
         }
-    } else {
-        lastError = "Failed to read NDEF data from card";
-        return false;
+        int indexMessage = 0;
+        int bufferSize = getBufferSize(messageNfcLength);
+        byte buffer[bufferSize];
+        while (indexMessage < bufferSize)
+        {
+            if (nfc->mifareclassic_IsFirstBlock(currentBlock))
+            {
+                success = nfc->mifareclassic_AuthenticateBlock(uid, uidLength, currentBlock, 0, key);
+                if (!success)
+                {
+                    Serial.print(F("Error. Block Authentication failed for "));
+                    Serial.println(currentBlock);
+                    // TODO error handling
+                    return false;
+                }
+            }
+            // read the data
+            success = nfc->mifareclassic_ReadDataBlock(currentBlock, &buffer[indexMessage]);
+            if (!success)
+            {
+                return false;
+            }
+
+            indexMessage += BLOCK_SIZE;
+            currentBlock++;
+            // skip the trailer block
+            if (nfc->mifareclassic_IsTrailerBlock(currentBlock))
+            {
+                currentBlock++;
+            }
+        }
+        return CPrintHexChar(&buffer[messageNfcStartIndex], messageNfcLength, nama, induk);
     }
+
+    return false;
 }
 
-String NFCHandler::bytesToHexString(uint8_t* data, uint8_t length) {
+String NFCHandler::bytesToHexString(uint8_t *data, uint8_t length)
+{
     String hexString = "";
 
-    for (uint8_t i = 0; i < length; i++) {
-        if (data[i] < 0x10) {
+    for (uint8_t i = 0; i < length; i++)
+    {
+        if (data[i] < 0x10)
+        {
             hexString += "0";
         }
         hexString += String(data[i], HEX);
@@ -152,62 +192,15 @@ String NFCHandler::bytesToHexString(uint8_t* data, uint8_t length) {
     return hexString;
 }
 
-bool NFCHandler::decodeNDEFMessage(uint8_t* message, uint16_t messageLength, String& nama, String& induk) {
-    // Simple NDEF text record decoder
-    // This is a simplified implementation - in production, use proper NDEF library
-
-    if (messageLength < 10) {
-        lastError = "NDEF message too short";
-        return false;
-    }
-
-    // Check for NDEF record header
-    if (message[0] != 0xD1) {  // Text record header (simplified check)
-        lastError = "Not a valid NDEF text record";
-        return false;
-    }
-
-    // Extract JSON data from the record payload
-    uint8_t payloadLength = message[1];  // Simplified - actual parsing is more complex
-
-    if (payloadLength > messageLength - 2) {
-        lastError = "Invalid payload length";
-        return false;
-    }
-
-    // Convert payload to string (assuming UTF-8)
-    String jsonString = "";
-    for (uint8_t i = 2; i < 2 + payloadLength && i < messageLength; i++) {
-        jsonString += (char)message[i];
-    }
-
-    // Parse JSON
-    DynamicJsonDocument doc(256);
-    DeserializationError error = deserializeJson(doc, jsonString);
-
-    if (error) {
-        lastError = "Failed to parse JSON: " + String(error.c_str());
-        return false;
-    }
-
-    // Extract nama and induk
-    if (doc.containsKey("nama") && doc.containsKey("induk")) {
-        nama = doc["nama"].as<String>();
-        induk = doc["induk"].as<String>();
-        return true;
-    } else {
-        lastError = "JSON missing nama or induk fields";
-        return false;
-    }
-}
-
-void NFCHandler::printCardInfo(uint8_t* uid, uint8_t uidLength) {
+void NFCHandler::printCardInfo(uint8_t *uid, uint8_t uidLength)
+{
     Serial.println("=== Card Information ===");
     Serial.print("UID Length: ");
     Serial.print(uidLength, DEC);
     Serial.println(" bytes");
     Serial.print("UID Value: ");
-    for (uint8_t i = 0; i < uidLength; i++) {
+    for (uint8_t i = 0; i < uidLength; i++)
+    {
         Serial.print(uid[i] < 0x10 ? " 0" : " ");
         Serial.print(uid[i], HEX);
     }
@@ -218,18 +211,21 @@ void NFCHandler::printCardInfo(uint8_t* uid, uint8_t uidLength) {
     Serial.println(uidString);
 }
 
-bool NFCHandler::authenticateCard() {
+bool NFCHandler::authenticateCard()
+{
     // For Mifare Classic cards, authentication might be needed
     // This is a placeholder - implement based on specific card requirements
     return true;
 }
 
-void NFCHandler::update() {
+void NFCHandler::update()
+{
     // Update method for continuous operations if needed
     // Currently, NFC operations are event-driven
 }
 
-String NFCHandler::getLastError() const {
+String NFCHandler::getLastError() const
+{
     return lastError;
 }
 
@@ -237,137 +233,142 @@ String NFCHandler::getLastError() const {
 // UTILITY FUNCTIONS
 // =============================================
 
-String waitForCardUID(uint32_t timeoutMs) {
+String waitForCardUID(uint32_t timeoutMs)
+{
     unsigned long startTime = millis();
 
-    while (millis() - startTime < timeoutMs) {
+    while (millis() - startTime < timeoutMs)
+    {
         String uid = nfcHandler.getCardUID();
-        if (uid.length() > 0) {
+        if (uid.length() > 0)
+        {
             return uid;
         }
-        delay(100);  // Small delay to prevent busy waiting
+        delay(100); // Small delay to prevent busy waiting
     }
 
-    return "";  // Timeout
+    return ""; // Timeout
 }
 
-bool isCardStillPresent() {
+bool isCardStillPresent()
+{
     return nfcHandler.isCardPresent();
 }
 
-
-String CPrintHexChar(const byte *data, const long numBytes)
+bool CPrintHexChar(const byte *data, const long numBytes, String &nama, String &induk)
 {
-  int32_t szPos;
-  String ll;
-  char decoded[512];
-  JsonDocument doc;
+    int32_t szPos;
+    String ll;
+    char decoded[512];
+    JsonDocument doc;
 
-  for (szPos = 10; szPos < numBytes; szPos++)
-  {
-    if (data[szPos] <= 0x1F)
-      Serial.print("");
-    else
+    for (szPos = 10; szPos < numBytes; szPos++)
     {
-      ll += (char)data[szPos];
+        if (data[szPos] <= 0x1F)
+            Serial.print("");
+        else
+        {
+            ll += (char)data[szPos];
+        }
     }
-  }
-  b64_decode(decoded, (char *)ll.c_str(), ll.length());
-  DeserializationError error = deserializeJson(doc, decoded);
-  if (error)
-  {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    return "error";
-  }
-  // const char *id = doc["id"];                       // "5744"
-  const char *induk = doc["induk"]; // "196600"
-  // const char *nik = doc["nik"];                     // "3201266712060003"
-  const char *nama = doc["nama"]; // "Inggrit Destiana Nugraeni"
-  // const char *alamat = doc["alamat"];               // "Jln Megamendung Rt.04/04 Blok C No 20 CIPAYUNG (CIPAYUNG DATAR) ...
-  // const char *kabupaten = doc["kabupaten"];         // "BOGOR"
-  // const char *tempat_lahir = doc["tempat_lahir"];   // "BOGOR"
-  // const char *tanggal_lahir = doc["tanggal_lahir"]; // "2006-12-27"
-  // const char *nisn = doc["nisn"];                   // "0063760230"
-  // const char *foto = doc["foto"];                   // "5c78eca25cf0836cc15623b4c18d9336.JPG"
-  String result = String(induk) + "-" + String(nama);
-  return result;
+    b64_decode(decoded, (char *)ll.c_str(), ll.length());
+    DeserializationError error = deserializeJson(doc, decoded);
+    if (error)
+    {
+        Serial.print(F("deserializeJson() failed: "));
+        Serial.println(error.f_str());
+        return "error";
+        return false;
+    }
+    // const char *id = doc["id"];                       // "5744"
+    induk = doc["induk"].as<String>(); // "196600"
+    // const char *nik = doc["nik"];                     // "3201266712060003"
+    nama = doc["nama"].as<String>(); // "Inggrit Destiana Nugraeni"
+    // const char *alamat = doc["alamat"];               // "Jln Megamendung Rt.04/04 Blok C No 20 CIPAYUNG (CIPAYUNG DATAR) ...
+    // const char *kabupaten = doc["kabupaten"];         // "BOGOR"
+    // const char *tempat_lahir = doc["tempat_lahir"];   // "BOGOR"
+    // const char *tanggal_lahir = doc["tanggal_lahir"]; // "2006-12-27"
+    // const char *nisn = doc["nisn"];                   // "0063760230"
+    // const char *foto = doc["foto"];                   // "5c78eca25cf0836cc15623b4c18d9336.JPG"
+    return true;
 }
 
 int getNdefStartIndex(byte *data)
 {
-  for (int i = 0; i < BLOCK_SIZE; i++)
-  {
-    if (data[i] == 0x0)
+    for (int i = 0; i < BLOCK_SIZE; i++)
     {
+        if (data[i] == 0x0)
+        {
+        }
+        else if (data[i] == 0x3)
+        {
+            return i;
+        }
+        else
+        {
+            Serial.print("Unknown TLV ");
+            return -2;
+        }
     }
-    else if (data[i] == 0x3)
-    {
-      return i;
-    }
-    else
-    {
-      Serial.print("Unknown TLV ");
-      return -2;
-    }
-  }
-  return -1;
+    return -1;
 }
 
 int getBufferSize(int messageLength)
 {
-  int bufferSize = messageLength;
-  if (messageLength < 0xFF)
-  {
-    bufferSize += SHORT_TLV_SIZE + 1;
-  }
-  else
-  {
-    bufferSize += LONG_TLV_SIZE + 1;
-  }
-  if (bufferSize % BLOCK_SIZE != 0 && BLOCK_SIZE > 0)
-  {
-    bufferSize = ((bufferSize / BLOCK_SIZE) + 1) * BLOCK_SIZE;
-  }
-  return bufferSize;
+    int bufferSize = messageLength;
+    if (messageLength < 0xFF)
+    {
+        bufferSize += SHORT_TLV_SIZE + 1;
+    }
+    else
+    {
+        bufferSize += LONG_TLV_SIZE + 1;
+    }
+    if (bufferSize % BLOCK_SIZE != 0 && BLOCK_SIZE > 0)
+    {
+        bufferSize = ((bufferSize / BLOCK_SIZE) + 1) * BLOCK_SIZE;
+    }
+    return bufferSize;
 }
 
 bool decodeTlv(byte *data, int &messageLength, int &messageStartIndex)
 {
-  int i = getNdefStartIndex(data);
-  if (i < 0 || data[i] != 0x3)
-  {
-    Serial.println(F("Error. Can't decode message length."));
-    return false;
-  }
-  else
-  {
-    if (data[i + 1] == 0xFF)
+    int i = getNdefStartIndex(data);
+    if (i < 0 || data[i] != 0x3)
     {
-      messageLength = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
-      messageStartIndex = i + LONG_TLV_SIZE;
+        Serial.println(F("Error. Can't decode message length."));
+        return false;
     }
     else
     {
-      messageLength = data[i + 1];
-      messageStartIndex = i + SHORT_TLV_SIZE;
+        if (data[i + 1] == 0xFF)
+        {
+            messageLength = ((0xFF & data[i + 2]) << 8) | (0xFF & data[i + 3]);
+            messageStartIndex = i + LONG_TLV_SIZE;
+        }
+        else
+        {
+            messageLength = data[i + 1];
+            messageStartIndex = i + SHORT_TLV_SIZE;
+        }
     }
-  }
-  return true;
+    return true;
 }
 
-String getCardTypeString(uint8_t cardType) {
-    switch (cardType) {
-        case 0x00:
-            return "Mifare Ultralight";
-        case 0x01:
-            return "Mifare Classic 1K";
-        case 0x02:
-            return "Mifare Classic 4K";
-        case 0x03:
-            return "Mifare DESFire";
-        default:
-            return "Unknown";
+String getCardTypeString(uint8_t cardType)
+{
+    switch (cardType)
+    {
+    case 0x00:
+        return "Mifare Ultralight";
+    case 0x01:
+        return "Mifare Classic 1K";
+    case 0x02:
+        return "Mifare Classic 4K";
+    case 0x03:
+        return "Mifare DESFire";
+    default:
+        return "Unknown";
     }
 }
 

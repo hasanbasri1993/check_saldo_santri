@@ -19,7 +19,6 @@ private:
     // Helper methods
     bool waitForCard(uint32_t timeoutMs);
     String bytesToHexString(uint8_t* data, uint8_t length);
-    bool decodeNDEFMessage(uint8_t* message, uint16_t messageLength, String& nama, String& induk);
 
 public:
     NFCHandler(uint8_t ssPin = SS, uint8_t clkPin = -1, uint8_t misoPin = -1, uint8_t mosiPin = -1);
@@ -68,5 +67,12 @@ bool isCardStillPresent();
 
 // Get card type as string
 String getCardTypeString(uint8_t cardType);
+
+bool decodeTlv(byte *data, int &messageLength, int &messageStartIndex);
+
+int getBufferSize(int messageLength);
+
+
+bool CPrintHexChar(const byte *data, const long numBytes, String& nama, String& induk);
 
 #endif // NFC_HANDLER_H
