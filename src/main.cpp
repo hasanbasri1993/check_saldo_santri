@@ -10,6 +10,7 @@
 #include "input_handler.h"
 #include "buzzer_feedback.h"
 #include "ota_handler.h"
+#include "simple_led.h"
 
 // =============================================
 // GLOBAL VARIABLES
@@ -82,6 +83,7 @@ void loop() {
     inputHandler.update();
     buzzer.update();
     otaHandler.update();
+    ledLoop(); // Update LED patterns
 
     // Check for OTA state triggers
     if (otaHandler.shouldTriggerOTAProgressState()) {
@@ -155,6 +157,9 @@ void handleStateMachine() {
 
 void handleIdleState() {
     static unsigned long lastCardCheck = 0;
+    
+    // LED off in idle state
+    setLEDState(LED_OFF);
 
     // Check for card periodically
     if (millis() - lastCardCheck >= 500) {  // Check every 500ms
@@ -165,6 +170,7 @@ void handleIdleState() {
             if (currentCardUID.length() > 0) {
                 Serial.print("Card detected: ");
                 Serial.println(currentCardUID);
+                setLEDState(LED_CARD_READING);
                 transitionToState(VALIDATING);
             }
         }
@@ -192,17 +198,20 @@ void handleValidatingState() {
         // Now validate the card using santri ID from JSON data
         if (apiClient.validateSantriCard(currentCardUID, santriInduk)) {
             // Card is valid
+            setLEDState(LED_CARD_VALID);
             display.showUserInfo(santriNama);
             transitionToState(WAITING_FOR_INPUT);
         } else {
             // Card validation failed
             Serial.println("Card validation failed");
+            setLEDState(LED_CARD_INVALID);
             display.showInvalidCard();
             buzzer.playError();
             transitionToState(DISPLAY_RESULT);
         }
     } else {
         Serial.println("Failed to read santri data from card");
+        setLEDState(LED_CARD_INVALID);
         display.showInvalidCard();
         buzzer.playError();
         transitionToState(DISPLAY_RESULT);
@@ -245,11 +254,13 @@ void handleSubmittingState() {
     int institution = INSTITUTION_1;  // Default to institution 1
 
     if (apiClient.logSantriActivity(santriInduk, institution)) {
+        setLEDState(LED_CARD_VALID);
         display.showSuccess();
         buzzer.playSuccess();
         Serial.println("Activity logged successfully");
         transitionToState(DISPLAY_RESULT);
     } else {
+        setLEDState(LED_SERVER_ERROR);
         display.showServerError();
         buzzer.playError();
         Serial.println("Failed to log activity");
@@ -274,6 +285,9 @@ void handleErrorState() {
 
 void handleOTAProgressState() {
     static unsigned long lastProgressUpdate = 0;
+    
+    // Set LED to OTA progress pattern
+    setLEDState(LED_OTA_PROGRESS);
 
     // Update progress display periodically
     if (millis() - lastProgressUpdate >= 500) {  // Update every 500ms
@@ -314,6 +328,7 @@ void handleOTAProgressState() {
 
 void handleOTACompleteState() {
     // Show completion message for 3000ms before restart
+    setLEDState(LED_CARD_VALID); // Green to indicate success
     display.showCustomMessage(MSG_OTA_COMPLETE_1, MSG_OTA_COMPLETE_2);
 
     if (millis() - stateStartTime >= 3000) {
@@ -338,6 +353,13 @@ void transitionToState(SystemState newState) {
 }
 
 bool initializeSystem() {
+    // Initialize simple LED first (shows booting animation)
+    if (!simpleLED.init()) {
+        Serial.println("LED initialization failed!");
+        return false;
+    }
+    setLEDState(LED_BOOTING);
+
     // Initialize display
     display.begin();
 
@@ -359,15 +381,20 @@ bool initializeSystem() {
     // Initialize WiFi
     if (!wifiHandler.begin()) {
         Serial.println("WiFi initialization failed!");
+        setLEDState(LED_WIFI_ERROR);
         return false;
     }
 
     // Test WiFi connection
+    setLEDState(LED_WIFI_CONNECTING);
     if (!wifiHandler.connect()) {
         Serial.println("WiFi connection failed!");
         display.showWiFiError();
         buzzer.playError();
+        setLEDState(LED_WIFI_ERROR);
         delay(3000);
+    } else {
+        setLEDState(LED_WIFI_CONNECTED);
     }
 
     // Initialize OTA after WiFi is connected (run in background)

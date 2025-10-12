@@ -20,6 +20,10 @@
 // Buzzer Pin
 #define BUZZER_PIN      7  // GPIO19 for Buzzer
 
+// LED Built-in RGB Pin (WeAct Studio ESP32-S3)
+#define LED_PIN         48 // GPIO48 for built-in RGB LED
+#define LED_COUNT       1  // Number of LEDs (built-in RGB LED)
+
 
 #define VERSION "1.0.0"
 #define DEVICE_NAME "Santri Card Reader"
@@ -126,5 +130,30 @@ enum SystemState {
 #define PATTERN_ERROR       3   // Double beep
 #define PATTERN_PROCESSING  4   // Slow pulse
 #define PATTERN_WARNING     5   // Long descending tone
+
+// =============================================
+// LED PATTERNS DEFINITIONS
+// =============================================
+
+// LED States for different events
+enum LEDState {
+    LED_OFF,                // LED mati untuk mode idle
+    LED_BOOTING,            // Breathing effect saat booting
+    LED_WIFI_CONNECTING,    // Blink biru saat connecting WiFi
+    LED_WIFI_CONNECTED,     // Hijau solid saat WiFi connected
+    LED_WIFI_ERROR,         // Blink merah cepat saat WiFi error
+    LED_OTA_PROGRESS,       // Rainbow cycle saat OTA
+    LED_CARD_READING,       // Kuning saat membaca kartu
+    LED_CARD_VALID,         // Hijau saat kartu valid
+    LED_CARD_INVALID,       // Merah saat kartu invalid
+    LED_SERVER_ERROR        // Merah blink saat server error
+};
+
+// LED Timing Constants
+#define LED_BREATHING_DURATION    5000    // 5 seconds for booting
+#define LED_WIFI_CONNECTED_DURATION 3000 // 3 seconds for WiFi connected
+#define LED_BLINK_INTERVAL_CONNECTING 500 // 500ms for WiFi connecting
+#define LED_BLINK_INTERVAL_ERROR 250     // 250ms for error states
+#define LED_RAINBOW_SPEED        50      // Rainbow cycle speed
 
 #endif // CONFIG_H
