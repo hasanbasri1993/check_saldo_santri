@@ -48,14 +48,25 @@ bool waitingInputStarted = false;
 bool waitingAutoSelectShown = false;
 unsigned long waitingLastStateTransition = 0;
 
+// Performance timing variables
+unsigned long cardDetectionTime = 0;
+unsigned long nfcReadStartTime = 0;
+unsigned long nfcReadEndTime = 0;
+unsigned long apiValidationStartTime = 0;
+unsigned long apiValidationEndTime = 0;
+unsigned long apiLoggingStartTime = 0;
+unsigned long apiLoggingEndTime = 0;
+
 // Input event structure
-typedef struct {
+typedef struct
+{
     int buttonPressed;
     unsigned long timestamp;
 } InputEvent;
 
 // State change event structure
-typedef struct {
+typedef struct
+{
     SystemState newState;
     unsigned long timestamp;
 } StateEvent;
@@ -91,31 +102,38 @@ void resetCardData();
 void createTasks();
 void deleteTasks();
 
+// Performance Analysis Functions
+void printPerformanceReport();
+void resetPerformanceTimers();
+
 // =============================================
 // SETUP FUNCTION
 // =============================================
 
-void setup() {
+void setup()
+{
     Serial.begin(115200);
     Serial.println("========================================");
     Serial.println("Sistem Pembaca Kartu Santri");
     Serial.println("========================================");
 
     // Initialize all components
-    if (!initializeSystem()) {
+    if (!initializeSystem())
+    {
         Serial.println("System initialization failed!");
         display.showCustomMessage("Init Failed!", "Check Serial");
-        while (true) {
+        while (true)
+        {
             // Non-blocking error loop
             delay(1000);
         }
     }
 
     Serial.println("System initialized successfully!");
-    
+
     // Create RTOS tasks
     createTasks();
-    
+
     Serial.println("RTOS tasks created successfully!");
     transitionToState(IDLE);
 }
@@ -124,7 +142,8 @@ void setup() {
 // MAIN LOOP
 // =============================================
 
-void loop() {
+void loop()
+{
     // Update components that don't have dedicated tasks
     wifiHandler.update();
     buzzer.update();
@@ -132,12 +151,14 @@ void loop() {
     ledLoop(); // Update LED patterns
 
     // Check for OTA state triggers
-    if (otaHandler.shouldTriggerOTAProgressState()) {
+    if (otaHandler.shouldTriggerOTAProgressState())
+    {
         transitionToState(OTA_PROGRESS);
         otaHandler.resetOTAProgressTrigger();
     }
 
-    if (otaHandler.shouldTriggerOTACompleteState()) {
+    if (otaHandler.shouldTriggerOTACompleteState())
+    {
         transitionToState(OTA_COMPLETE);
         otaHandler.resetOTACompleteTrigger();
     }
@@ -150,47 +171,49 @@ void loop() {
 // STATE MACHINE HANDLER
 // =============================================
 
-void handleStateMachine() {
+void handleStateMachine()
+{
     unsigned long currentTime = millis();
 
     // State-specific handling
-    switch (currentState) {
-        case IDLE:
-            handleIdleState();
-            break;
+    switch (currentState)
+    {
+    case IDLE:
+        handleIdleState();
+        break;
 
-        case VALIDATING:
-            handleValidatingState();
-            break;
+    case VALIDATING:
+        handleValidatingState();
+        break;
 
-        case WAITING_FOR_INPUT:
-            handleWaitingForInputState();
-            break;
+    case WAITING_FOR_INPUT:
+        handleWaitingForInputState();
+        break;
 
-        case SUBMITTING:
-            handleSubmittingState();
-            break;
+    case SUBMITTING:
+        handleSubmittingState();
+        break;
 
-        case DISPLAY_RESULT:
-            handleDisplayResultState();
-            break;
+    case DISPLAY_RESULT:
+        handleDisplayResultState();
+        break;
 
-        case OTA_PROGRESS:
-            handleOTAProgressState();
-            break;
+    case OTA_PROGRESS:
+        handleOTAProgressState();
+        break;
 
-        case OTA_COMPLETE:
-            handleOTACompleteState();
-            break;
+    case OTA_COMPLETE:
+        handleOTACompleteState();
+        break;
 
-        case ERROR_STATE:
-            handleErrorState();
-            break;
+    case ERROR_STATE:
+        handleErrorState();
+        break;
 
-        default:
-            Serial.println("Unknown state!");
-            transitionToState(IDLE);
-            break;
+    default:
+        Serial.println("Unknown state!");
+        transitionToState(IDLE);
+        break;
     }
 }
 
@@ -198,21 +221,32 @@ void handleStateMachine() {
 // STATE HANDLERS
 // =============================================
 
-void handleIdleState() {
+void handleIdleState()
+{
     static unsigned long lastCardCheck = 0;
-    
+
     // LED off in idle state
     setLEDState(LED_OFF);
 
     // Check for card periodically
-    if (millis() - lastCardCheck >= 500) {  // Check every 500ms
-        if (nfcHandler.isCardPresent()) {
+    if (millis() - lastCardCheck >= 500)
+    { // Check every 500ms
+        if (nfcHandler.isCardPresent())
+        {
             buzzer.playClick();
             currentCardUID = nfcHandler.getCardUID();
 
-            if (currentCardUID.length() > 0) {
+            if (currentCardUID.length() > 0)
+            {
+                cardDetectionTime = millis();
+                Serial.println("========================================");
+                Serial.println("PERFORMANCE ANALYSIS STARTED");
+                Serial.println("========================================");
                 Serial.print("Card detected: ");
                 Serial.println(currentCardUID);
+                Serial.print("Detection time: ");
+                Serial.print(cardDetectionTime);
+                Serial.println(" ms");
                 setLEDState(LED_CARD_READING);
                 transitionToState(VALIDATING);
             }
@@ -221,10 +255,12 @@ void handleIdleState() {
     }
 }
 
-void handleValidatingState() {
+void handleValidatingState()
+{
     static bool validationStarted = false;
 
-    if (!validationStarted) {
+    if (!validationStarted)
+    {
         display.showValidating();
         buzzer.playProcessingPulse();
         validationStarted = true;
@@ -232,21 +268,41 @@ void handleValidatingState() {
     }
 
     // First, try to read santri data from card
-    if (nfcHandler.readSantriData(santriNama, santriInduk)) {
+    nfcReadStartTime = millis();
+    if (nfcHandler.readSantriData(santriNama, santriInduk))
+    {
+        nfcReadEndTime = millis();
         Serial.print("Santri data read - Nama: ");
         Serial.print(santriNama);
         Serial.print(", Induk: ");
         Serial.println(santriInduk);
+        Serial.print("NFC read time: ");
+        Serial.print(nfcReadEndTime - nfcReadStartTime);
+        Serial.println(" ms");
 
         // Now validate the card using santri ID from JSON data
-        if (apiClient.validateSantriCard(currentCardUID, santriInduk)) {
+        apiValidationStartTime = millis();
+        if (apiClient.validateSantriCard(currentCardUID, santriInduk))
+        {
+            apiValidationEndTime = millis();
+            Serial.print("API validation time: ");
+            Serial.print(apiValidationEndTime - apiValidationStartTime);
+            Serial.println(" ms");
+            
             // Card is valid
             Serial.println("Card validation successful - transitioning to WAITING_FOR_INPUT");
-            
+
             // Simplified transition without LED/buzzer to isolate the issue
             display.showUserInfo(santriNama);
             transitionToState(WAITING_FOR_INPUT);
-        } else {
+        }
+        else
+        {
+            apiValidationEndTime = millis();
+            Serial.print("API validation time: ");
+            Serial.print(apiValidationEndTime - apiValidationStartTime);
+            Serial.println(" ms");
+            
             // Card validation failed
             Serial.println("Card validation failed");
             setLEDState(LED_CARD_INVALID);
@@ -254,7 +310,9 @@ void handleValidatingState() {
             buzzer.playError();
             transitionToState(DISPLAY_RESULT);
         }
-    } else {
+    }
+    else
+    {
         Serial.println("Failed to read santri data from card");
         setLEDState(LED_CARD_INVALID);
         display.showInvalidCard();
@@ -263,14 +321,19 @@ void handleValidatingState() {
     }
 }
 
-void handleWaitingForInputState() {
+void handleWaitingForInputState()
+{
     static unsigned long timeoutStartTime = 0;
-    
-    if (!waitingInputStarted) {
+
+    if (!waitingInputStarted)
+    {
         // Start scrolling the name if it's longer than 16 characters
-        if (santriNama.length() > 16) {
+        if (santriNama.length() > 16)
+        {
             display.startScrolling(santriNama, 300); // 300ms delay between scrolls
-        } else {
+        }
+        else
+        {
             display.showSelectActivity(santriNama);
         }
         waitingInputStarted = true;
@@ -280,33 +343,34 @@ void handleWaitingForInputState() {
 
     // Check for timeout (5 seconds) - simplified logic
     unsigned long elapsed = millis() - timeoutStartTime;
-    if (elapsed >= 5000) { // 5 seconds timeout
-        Serial.println("Timeout reached - auto-selecting button 1");
-        
-        // Stop scrolling
-        display.stopScrolling();
-        
-        // Show auto-selection message briefly
-        display.showCustomMessage("Auto Select", "Button 1");
-        
-        // Wait 1 second then transition
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        
-        // Simulate button 1 press
-        buzzer.playClick();
-        Serial.println("Auto-selected button 1 - transitioning to SUBMITTING");
-        
-        transitionToState(SUBMITTING);
-        return;
-    }
+    // if (elapsed >= 5000) { // 5 seconds timeout
+    Serial.println("Timeout reached - auto-selecting button 1");
+
+    // Stop scrolling
+    display.stopScrolling();
+
+    // Show auto-selection message briefly
+    display.showCustomMessage("Auto Select", "Button 1");
+
+    // Wait 1 second then transition
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    // Simulate button 1 press
+    buzzer.playClick();
+    Serial.println("Auto-selected button 1 - transitioning to SUBMITTING");
+
+    transitionToState(SUBMITTING);
+    return;
+    //}
 
     // Check for button press from queue
     InputEvent inputEvent;
-    if (xQueueReceive(inputQueue, &inputEvent, 0) == pdTRUE) {
+    if (xQueueReceive(inputQueue, &inputEvent, 0) == pdTRUE)
+    {
         buzzer.playClick();
         Serial.print("Button pressed: ");
         Serial.println(inputEvent.buttonPressed);
-        
+
         // Stop scrolling when button is pressed
         display.stopScrolling();
 
@@ -314,10 +378,12 @@ void handleWaitingForInputState() {
     }
 }
 
-void handleSubmittingState() {
+void handleSubmittingState()
+{
     static bool submissionStarted = false;
 
-    if (!submissionStarted) {
+    if (!submissionStarted)
+    {
         display.showProcessing();
         buzzer.playProcessingPulse();
         submissionStarted = true;
@@ -326,15 +392,32 @@ void handleSubmittingState() {
 
     // Submit activity (this is a simplified version - in real implementation,
     // you'd want to check which button was pressed and get that info)
-    int institution = INSTITUTION_1;  // Default to institution 1
+    int institution = INSTITUTION_1; // Default to institution 1
 
-    if (apiClient.logSantriActivity(santriInduk, institution)) {
+    apiLoggingStartTime = millis();
+    if (apiClient.logSantriActivity(santriInduk, institution))
+    {
+        apiLoggingEndTime = millis();
+        Serial.print("API logging time: ");
+        Serial.print(apiLoggingEndTime - apiLoggingStartTime);
+        Serial.println(" ms");
+        
+        // Print complete performance report
+        printPerformanceReport();
+        
         setLEDState(LED_CARD_VALID);
         display.showSuccess();
         buzzer.playSuccess();
         Serial.println("Activity logged successfully");
         transitionToState(DISPLAY_RESULT);
-    } else {
+    }
+    else
+    {
+        apiLoggingEndTime = millis();
+        Serial.print("API logging time: ");
+        Serial.print(apiLoggingEndTime - apiLoggingStartTime);
+        Serial.println(" ms");
+        
         setLEDState(LED_SERVER_ERROR);
         display.showServerError();
         buzzer.playError();
@@ -343,38 +426,48 @@ void handleSubmittingState() {
     }
 }
 
-void handleDisplayResultState() {
+void handleDisplayResultState()
+{
     // Wait for timeout or user interaction
-    if (millis() - stateStartTime >= LCD_MESSAGE_DELAY) {
+    if (millis() - stateStartTime >= LCD_MESSAGE_DELAY)
+    {
         resetCardData();
         transitionToState(IDLE);
     }
 }
 
-void handleErrorState() {
+void handleErrorState()
+{
     // Handle error state - could be WiFi errors, NFC errors, etc.
-    if (millis() - stateStartTime >= LCD_MESSAGE_DELAY) {
+    if (millis() - stateStartTime >= LCD_MESSAGE_DELAY)
+    {
         transitionToState(IDLE);
     }
 }
 
-void handleOTAProgressState() {
+void handleOTAProgressState()
+{
     static unsigned long lastProgressUpdate = 0;
-    
+
     // Set LED to OTA progress pattern
     setLEDState(LED_OTA_PROGRESS);
 
     // Update progress display periodically
-    if (millis() - lastProgressUpdate >= 500) {  // Update every 500ms
-        if (otaHandler.isOTAInProgress()) {
+    if (millis() - lastProgressUpdate >= 500)
+    { // Update every 500ms
+        if (otaHandler.isOTAInProgress())
+        {
             unsigned int progress = otaHandler.getOTAProgress();
             unsigned int total = otaHandler.getOTATotal();
 
             // Calculate percentage safely (avoid division by zero)
             unsigned int percentage;
-            if (total > 0 && progress > 0) {
+            if (total > 0 && progress > 0)
+            {
                 percentage = (progress * 100) / total;
-            } else {
+            }
+            else
+            {
                 percentage = 0;
             }
 
@@ -389,10 +482,14 @@ void handleOTAProgressState() {
     }
 
     // Check if OTA is complete
-    if (!otaHandler.isOTAInProgress()) {
-        if (otaHandler.isOTASuccess()) {
+    if (!otaHandler.isOTAInProgress())
+    {
+        if (otaHandler.isOTASuccess())
+        {
             transitionToState(OTA_COMPLETE);
-        } else {
+        }
+        else
+        {
             // OTA failed, go back to idle
             display.showCustomMessage("OTA Failed", "Check Serial");
             delay(2000);
@@ -401,12 +498,14 @@ void handleOTAProgressState() {
     }
 }
 
-void handleOTACompleteState() {
+void handleOTACompleteState()
+{
     // Show completion message for 3000ms before restart
     setLEDState(LED_CARD_VALID); // Green to indicate success
     display.showCustomMessage(MSG_OTA_COMPLETE_1, MSG_OTA_COMPLETE_2);
 
-    if (millis() - stateStartTime >= 3000) {
+    if (millis() - stateStartTime >= 3000)
+    {
         Serial.println("OTA complete delay finished - restarting...");
         ESP.restart();
     }
@@ -416,7 +515,8 @@ void handleOTACompleteState() {
 // UTILITY FUNCTIONS
 // =============================================
 
-void transitionToState(SystemState newState) {
+void transitionToState(SystemState newState)
+{
     Serial.print("State transition: ");
     Serial.print(currentState);
     Serial.print(" -> ");
@@ -425,15 +525,16 @@ void transitionToState(SystemState newState) {
     currentState = newState;
     stateStartTime = millis();
     lastActivity = millis();
-    
+
     // Reset variables for specific states
-    if (newState == WAITING_FOR_INPUT) {
+    if (newState == WAITING_FOR_INPUT)
+    {
         waitingInputStarted = false;
         waitingAutoSelectShown = false;
         waitingLastStateTransition = 0;
         Serial.println("Reset WAITING_FOR_INPUT variables");
     }
-    
+
     // Send state change event to queue
     StateEvent stateEvent;
     stateEvent.newState = newState;
@@ -441,9 +542,11 @@ void transitionToState(SystemState newState) {
     xQueueSend(stateQueue, &stateEvent, 0);
 }
 
-bool initializeSystem() {
+bool initializeSystem()
+{
     // Initialize simple LED first (shows booting animation)
-    if (!simpleLED.init()) {
+    if (!simpleLED.init())
+    {
         Serial.println("LED initialization failed!");
         return false;
     }
@@ -459,7 +562,8 @@ bool initializeSystem() {
     inputHandler.begin();
 
     // Initialize NFC
-    if (!nfcHandler.begin()) {
+    if (!nfcHandler.begin())
+    {
         Serial.println("NFC initialization failed!");
         return false;
     }
@@ -468,7 +572,8 @@ bool initializeSystem() {
     apiClient.begin();
 
     // Initialize WiFi
-    if (!wifiHandler.begin()) {
+    if (!wifiHandler.begin())
+    {
         Serial.println("WiFi initialization failed!");
         setLEDState(LED_WIFI_ERROR);
         return false;
@@ -476,23 +581,30 @@ bool initializeSystem() {
 
     // Test WiFi connection
     setLEDState(LED_WIFI_CONNECTING);
-    if (!wifiHandler.connect()) {
+    if (!wifiHandler.connect())
+    {
         Serial.println("WiFi connection failed!");
         display.showWiFiError();
         buzzer.playError();
         setLEDState(LED_WIFI_ERROR);
         delay(3000);
-    } else {
+    }
+    else
+    {
         setLEDState(LED_WIFI_CONNECTED);
     }
 
     // Initialize OTA after WiFi is connected (run in background)
-    if (wifiHandler.isWiFiConnected()) {
+    if (wifiHandler.isWiFiConnected())
+    {
         Serial.println("Starting OTA service...");
-        if (otaHandler.begin()) {
+        if (otaHandler.begin())
+        {
             Serial.println("OTA service started successfully");
             // OTA runs in background without disturbing card reading interface
-        } else {
+        }
+        else
+        {
             Serial.println("Failed to start OTA service");
         }
     }
@@ -500,15 +612,19 @@ bool initializeSystem() {
     return true;
 }
 
-void performSystemCheck() {
+void performSystemCheck()
+{
     // Periodic system health check
-    if (millis() - lastActivity >= 30000) {  // Every 30 seconds
-        if (!wifiHandler.isWiFiConnected()) {
+    if (millis() - lastActivity >= 30000)
+    { // Every 30 seconds
+        if (!wifiHandler.isWiFiConnected())
+        {
             Serial.println("WiFi disconnected, attempting reconnection...");
             wifiHandler.connect();
         }
 
-        if (!apiClient.testConnection()) {
+        if (!apiClient.testConnection())
+        {
             Serial.println("Server connection test failed");
         }
 
@@ -518,141 +634,225 @@ void performSystemCheck() {
     }
 }
 
-void resetCardData() {
+void resetCardData()
+{
     currentCardUID = "";
     santriNama = "";
     santriInduk = "";
+    resetPerformanceTimers();
 }
 
 // =============================================
 // RTOS TASK IMPLEMENTATIONS
 // =============================================
 
-void createTasks() {
+void createTasks()
+{
     // Create queues
     inputQueue = xQueueCreate(10, sizeof(InputEvent));
     stateQueue = xQueueCreate(5, sizeof(StateEvent));
     displayMutex = xSemaphoreCreateMutex();
-    
-    if (inputQueue == NULL || stateQueue == NULL || displayMutex == NULL) {
+
+    if (inputQueue == NULL || stateQueue == NULL || displayMutex == NULL)
+    {
         Serial.println("Failed to create RTOS objects!");
         return;
     }
-    
+
     // Create tasks
     xTaskCreatePinnedToCore(
-        stateMachineTask,      // Task function
-        "StateMachine",        // Task name
-        4096,                  // Stack size
-        NULL,                  // Parameters
-        2,                     // Priority
+        stateMachineTask,        // Task function
+        "StateMachine",          // Task name
+        4096,                    // Stack size
+        NULL,                    // Parameters
+        2,                       // Priority
         &stateMachineTaskHandle, // Task handle
-        1                      // Core (Core 1)
+        1                        // Core (Core 1)
     );
-    
+
     xTaskCreatePinnedToCore(
-        inputTask,             // Task function
-        "InputHandler",        // Task name
-        2048,                  // Stack size
-        NULL,                  // Parameters
-        1,                     // Priority
-        &inputTaskHandle,      // Task handle
-        0                     // Core (Core 0)
+        inputTask,        // Task function
+        "InputHandler",   // Task name
+        2048,             // Stack size
+        NULL,             // Parameters
+        1,                // Priority
+        &inputTaskHandle, // Task handle
+        0                 // Core (Core 0)
     );
-    
+
     xTaskCreatePinnedToCore(
-        displayTask,           // Task function
-        "DisplayManager",      // Task name
-        2048,                  // Stack size
-        NULL,                  // Parameters
-        1,                     // Priority
-        &displayTaskHandle,    // Task handle
-        0                     // Core (Core 0)
+        displayTask,        // Task function
+        "DisplayManager",   // Task name
+        2048,               // Stack size
+        NULL,               // Parameters
+        1,                  // Priority
+        &displayTaskHandle, // Task handle
+        0                   // Core (Core 0)
     );
-    
+
     Serial.println("RTOS tasks created successfully!");
 }
 
-void deleteTasks() {
-    if (stateMachineTaskHandle != NULL) {
+void deleteTasks()
+{
+    if (stateMachineTaskHandle != NULL)
+    {
         vTaskDelete(stateMachineTaskHandle);
         stateMachineTaskHandle = NULL;
     }
-    
-    if (inputTaskHandle != NULL) {
+
+    if (inputTaskHandle != NULL)
+    {
         vTaskDelete(inputTaskHandle);
         inputTaskHandle = NULL;
     }
-    
-    if (displayTaskHandle != NULL) {
+
+    if (displayTaskHandle != NULL)
+    {
         vTaskDelete(displayTaskHandle);
         displayTaskHandle = NULL;
     }
-    
-    if (inputQueue != NULL) {
+
+    if (inputQueue != NULL)
+    {
         vQueueDelete(inputQueue);
         inputQueue = NULL;
     }
-    
-    if (stateQueue != NULL) {
+
+    if (stateQueue != NULL)
+    {
         vQueueDelete(stateQueue);
         stateQueue = NULL;
     }
-    
-    if (displayMutex != NULL) {
+
+    if (displayMutex != NULL)
+    {
         vSemaphoreDelete(displayMutex);
         displayMutex = NULL;
     }
 }
 
-void stateMachineTask(void *parameter) {
+void stateMachineTask(void *parameter)
+{
     Serial.println("State Machine Task started");
-    
-    while (true) {
+
+    while (true)
+    {
         // Handle state machine
         handleStateMachine();
-        
+
         // Small delay to prevent excessive CPU usage
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
-void inputTask(void *parameter) {
+void inputTask(void *parameter)
+{
     Serial.println("Input Task started");
-    
-    while (true) {
+
+    while (true)
+    {
         // Check for button press
         int buttonPressed = inputHandler.checkButtonPressed();
-        
-        if (buttonPressed > 0) {
+
+        if (buttonPressed > 0)
+        {
             InputEvent inputEvent;
             inputEvent.buttonPressed = buttonPressed;
             inputEvent.timestamp = millis();
-            
+
             // Send to queue (non-blocking)
-            if (xQueueSend(inputQueue, &inputEvent, 0) != pdTRUE) {
+            if (xQueueSend(inputQueue, &inputEvent, 0) != pdTRUE)
+            {
                 Serial.println("Input queue full - dropping event");
             }
         }
-        
+
         // Small delay
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
-void displayTask(void *parameter) {
+void displayTask(void *parameter)
+{
     Serial.println("Display Task started");
-    
-    while (true) {
+
+    while (true)
+    {
         // Take mutex before updating display
-        if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+        if (xSemaphoreTake(displayMutex, pdMS_TO_TICKS(100)) == pdTRUE)
+        {
             display.update();
             xSemaphoreGive(displayMutex);
         }
-        
+
         // Small delay
         vTaskDelay(pdMS_TO_TICKS(100));
     }
+}
+
+// =============================================
+// PERFORMANCE ANALYSIS FUNCTIONS
+// =============================================
+
+void printPerformanceReport()
+{
+    Serial.println("========================================");
+    Serial.println("PERFORMANCE ANALYSIS REPORT");
+    Serial.println("========================================");
+    
+    unsigned long totalTime = apiLoggingEndTime - cardDetectionTime;
+    
+    Serial.print("Total time (card detection to logging): ");
+    Serial.print(totalTime);
+    Serial.println(" ms");
+    
+    Serial.print("NFC read time: ");
+    Serial.print(nfcReadEndTime - nfcReadStartTime);
+    Serial.println(" ms");
+    
+    Serial.print("API validation time: ");
+    Serial.print(apiValidationEndTime - apiValidationStartTime);
+    Serial.println(" ms");
+    
+    Serial.print("API logging time: ");
+    Serial.print(apiLoggingEndTime - apiLoggingStartTime);
+    Serial.println(" ms");
+    
+    // Calculate percentages
+    if (totalTime > 0) {
+        Serial.println("----------------------------------------");
+        Serial.println("PERCENTAGE BREAKDOWN:");
+        
+        float nfcPercent = ((float)(nfcReadEndTime - nfcReadStartTime) / totalTime) * 100;
+        float validationPercent = ((float)(apiValidationEndTime - apiValidationStartTime) / totalTime) * 100;
+        float loggingPercent = ((float)(apiLoggingEndTime - apiLoggingStartTime) / totalTime) * 100;
+        
+        Serial.print("NFC read: ");
+        Serial.print(nfcPercent, 1);
+        Serial.println("%");
+        
+        Serial.print("API validation: ");
+        Serial.print(validationPercent, 1);
+        Serial.println("%");
+        
+        Serial.print("API logging: ");
+        Serial.print(loggingPercent, 1);
+        Serial.println("%");
+    }
+    
+    Serial.println("========================================");
+}
+
+void resetPerformanceTimers()
+{
+    cardDetectionTime = 0;
+    nfcReadStartTime = 0;
+    nfcReadEndTime = 0;
+    apiValidationStartTime = 0;
+    apiValidationEndTime = 0;
+    apiLoggingStartTime = 0;
+    apiLoggingEndTime = 0;
 }
 
 // =============================================

@@ -129,9 +129,6 @@ bool APIClient::logSantriActivity(const String &memberID, int institution)
     payload += String(institution) + "\r\n";
     payload += "--" + boundary + "--\r\n";
 
-    Serial.print("Multipart payload: ");
-    Serial.println(payload);
-
     lastResponseCode = httpClient.POST(payload);
     lastResponseBody = getResponseBody();
 
