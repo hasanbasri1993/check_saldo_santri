@@ -114,7 +114,7 @@ String OTAHandler::getDeviceInfo() {
     info += "\"uptime\":" + String(millis() / 1000) + ",";
     info += "\"free_heap\":" + String(ESP.getFreeHeap()) + ",";
     info += "\"wifi_ssid\":\"" + WiFi.SSID() + "\",";
-    info += "\"wifi_rssi\":" + String(WiFi.RSSI()) + "\"";
+    info += "\"wifi_rssi\":" + String(WiFi.RSSI());
     info += "}";
     return info;
 }
