@@ -91,3 +91,8 @@ extern InputHandler inputHandler;
 int waitForButtonPress(unsigned long timeoutMs = 10000);  // Returns button number or 0 if timeout
 
 #endif // INPUT_HANDLER_H
+
+
+// TODO:
+// Mau pake 3-Pin Toggle Switch saja bisa lgsg replace button 1, 2, 3
+// https://www.youtube.com/watch?v=FEdvoMx7-Mo
