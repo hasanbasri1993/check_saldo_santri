@@ -34,11 +34,9 @@ bool SimpleLED::init()
 {
     Serial.println("Initializing Built-in RGB LED (WS2812B) for WeAct Studio ESP32-S3...");
 
-    // Initialize NeoPixel like in neo.md
+    // Initialize NeoPixel exactly like in neo.md - simple and direct
     pixels.begin();
     pixels.setBrightness(100); // Set brightness like in neo.md
-    pixels.clear();
-    pixels.show();
 
     currentState = LED_BOOTING;
     stateStartTime = millis();
@@ -47,37 +45,6 @@ bool SimpleLED::init()
 
     Serial.println("Built-in RGB LED (WS2812B) initialized successfully");
     Serial.printf("LED Pin: %d (Built-in RGB LED)\n", LED_PIN);
-    Serial.println("");
-
-    // Test LED with HSV color like in neo.md
-    Serial.println("Testing built-in RGB LED with HSV colors...");
-
-    // Quick test sequence using HSV like in neo.md
-    Serial.println("Testing HSV colors...");
-
-    // Test red (hue = 0)
-    uint32_t redColor = pixels.gamma32(pixels.ColorHSV(0));
-    pixels.setPixelColor(0, redColor);
-    pixels.show();
-
-    // Test green (hue = 21845, which is 120 degrees)
-    uint32_t greenColor = pixels.gamma32(pixels.ColorHSV(21845));
-    pixels.setPixelColor(0, greenColor);
-    pixels.show();
-
-    // Test blue (hue = 43690, which is 240 degrees)
-    uint32_t blueColor = pixels.gamma32(pixels.ColorHSV(43690));
-    pixels.setPixelColor(0, blueColor);
-    pixels.show();
-
-    // Test white (hue = 0, saturation = 0, value = 255)
-    uint32_t whiteColor = pixels.gamma32(pixels.ColorHSV(0, 0, 255));
-    pixels.setPixelColor(0, whiteColor);
-    pixels.show();
-
-    // Turn off
-    pixels.clear();
-    pixels.show();
 
     Serial.println("Built-in RGB LED test completed!");
 
