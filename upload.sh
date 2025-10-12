@@ -1,50 +1,60 @@
 #!/bin/sh
 
 # ==============================================================================
-# A script to initialize and upload a firmware file to a specific server.
+# Skrip untuk build dan upload firmware, dengan host yang dapat diubah.
 #
-# Proses:
-# 1. Mengirim permintaan inisialisasi (start) ke server.
-# 2. Mengunggah file firmware.
+# Penggunaan:
+#   ./upload.sh [optional_host_url]
 # ==============================================================================
 
 # --- Konfigurasi ---
-HOST="http://192.168.87.97:8080"
-FIRMWARE_HASH="441018525208457705bf09a8ee3c1093"
+DEFAULT_HOST="http://192.168.87.97:8080"
+# Gunakan argumen pertama ($1) sebagai HOST jika ada, jika tidak, gunakan default.
+HOST="${1:-$DEFAULT_HOST}"
 
-# Path ke file firmware, secara dinamis mencari di folder Downloads pengguna.
-FIRMWARE_FILE="$HOME/Downloads/firmware.bin"
+FIRMWARE_HASH="441018525208457705bf09a8ee3c1093"
 
 # --- URL Endpoints ---
 START_URL="${HOST}/ota/start?mode=fr&hash=${FIRMWARE_HASH}"
 UPLOAD_URL="${HOST}/ota/upload"
 # ---------------------
 
-# A. Periksa apakah file firmware ada.
-echo "🔎 Memeriksa file firmware: $FIRMWARE_FILE"
-if [ ! -f "$FIRMWARE_FILE" ]; then
-    echo "❌ Error: File firmware tidak ditemukan di '$FIRMWARE_FILE'"
+echo "🔌 Menggunakan host: $HOST"
+
+# Langkah 1: Build proyek PlatformIO menggunakan environment default
+echo "▶️  Langkah 1: Membangun firmware..."
+platformio run
+
+# Periksa apakah build berhasil
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Build PlatformIO gagal. Proses dihentikan."
     exit 1
 fi
+echo "✅ Build berhasil."
 
-# Langkah 1: Inisialisasi proses OTA (Over-The-Air).
-echo "\n▶️  Langkah 1: Memulai proses OTA di server..."
-curl "$START_URL" --insecure
-echo "\n" # Menambah baris baru agar rapi
+# Langkah 2: Cari file firmware.bin yang paling baru
+echo "🔎 Mencari file firmware.bin..."
+FIRMWARE_FILE=$(find .pio/build -name firmware.bin -print0 | xargs -0 ls -t | head -n 1)
 
-# Langkah 2: Unggah file firmware.
-echo "🚀 Langkah 2: Mengunggah $FIRMWARE_FILE ke $UPLOAD_URL..."
+if [ -z "$FIRMWARE_FILE" ] || [ ! -f "$FIRMWARE_FILE" ]; then
+    echo "❌ Error: Tidak dapat menemukan file firmware.bin setelah build."
+    exit 1
+fi
+echo "👍 Ditemukan: $FIRMWARE_FILE"
+
+# Langkah 3: Inisialisasi proses OTA
+echo "\n▶️  Langkah 3: Memulai proses OTA..."
+curl --connect-timeout 5 "$START_URL" --insecure
+echo "\n"
+
+# Langkah 4: Unggah file firmware
+echo "🚀 Langkah 4: Mengunggah $FIRMWARE_FILE..."
 curl "$UPLOAD_URL" \
   -H 'Accept: */*' \
-  -H 'Accept-Language: en-US,en;q=0.9,id;q=0.8' \
-  -H 'Cache-Control: no-cache' \
-  -H 'Connection: keep-alive' \
-  -H 'Origin: http://192.168.87.97:8080' \
-  -H 'Pragma: no-cache' \
-  -H 'Referer: http://192.168.87.97:8080/update' \
-  -H 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36' \
+  -H "Origin: ${HOST}" \
+  -H "Referer: ${HOST}/update" \
   -F "file=@$FIRMWARE_FILE;type=application/macbinary" \
   --insecure
 
-# Pesan Selesai.
+# Pesan Selesai
 echo "\n✅ Proses selesai."
