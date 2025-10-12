@@ -20,6 +20,13 @@ private:
     bool isDisplayingMessage;
     String currentLine1;
     String currentLine2;
+    
+    // Scrolling variables
+    bool isScrolling;
+    String scrollingText;
+    int scrollPosition;
+    unsigned long lastScrollTime;
+    unsigned long scrollDelay;
 
     // Helper methods
     void clearDisplay();
@@ -50,6 +57,11 @@ public:
 
     // Manual message display (no auto-clear)
     void showCustomMessage(String line1, String line2);
+
+    // Scrolling text methods
+    void startScrolling(const String& text, unsigned long delayMs = 500);
+    void stopScrolling();
+    void updateScrolling();
 
     // Clear display
     void clear();

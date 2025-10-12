@@ -5,7 +5,8 @@
 // =============================================
 
 DisplayManager::DisplayManager(uint8_t addr, uint8_t columns, uint8_t rows)
-    : address(addr), cols(columns), rows(rows), isDisplayingMessage(false), messageStartTime(0), lcd(addr, columns, rows) {}
+    : address(addr), cols(columns), rows(rows), isDisplayingMessage(false), messageStartTime(0), lcd(addr, columns, rows),
+      isScrolling(false), scrollingText(""), scrollPosition(0), lastScrollTime(0), scrollDelay(500) {}
 
 void DisplayManager::begin() {
     initLCD();
@@ -127,6 +128,12 @@ void DisplayManager::clear() {
 }
 
 void DisplayManager::update() {
+    // Update scrolling text if active
+    if (isScrolling) {
+        updateScrolling();
+        return; // Don't clear scrolling messages
+    }
+    
     // Auto-clear temporary messages after delay
     if (isDisplayingMessage && (millis() - messageStartTime >= LCD_MESSAGE_DELAY)) {
         showIdleScreen();
@@ -179,6 +186,78 @@ void DisplayManager::scrollText(String text, uint8_t row, uint32_t delayMs) {
         }
 
         lastScrollTime = millis();
+    }
+}
+
+void DisplayManager::startScrolling(const String& text, unsigned long delayMs) {
+    scrollingText = text;
+    scrollPosition = 0;
+    scrollDelay = delayMs;
+    lastScrollTime = millis();
+    isScrolling = true;
+    
+    // Stop any current message display
+    isDisplayingMessage = false;
+    
+    Serial.println("Started scrolling: " + text);
+}
+
+void DisplayManager::stopScrolling() {
+    isScrolling = false;
+    scrollingText = "";
+    scrollPosition = 0;
+    Serial.println("Stopped scrolling");
+}
+
+void DisplayManager::updateScrolling() {
+    if (!isScrolling) return;
+    
+    unsigned long currentTime = millis();
+    
+    // Check if it's time to scroll
+    if (currentTime - lastScrollTime >= scrollDelay) {
+        // Clear the display first
+        lcd.clear();
+        
+        // Display the scrolling text
+        String displayText = scrollingText;
+        
+        // If text is longer than display width, scroll it
+        if (scrollingText.length() > cols) {
+            // Calculate the substring to display
+            int startPos = scrollPosition % (scrollingText.length() + cols);
+            int endPos = startPos + cols;
+            
+            if (endPos > scrollingText.length()) {
+                // Need to wrap around
+                String part1 = scrollingText.substring(startPos);
+                String part2 = scrollingText.substring(0, endPos - scrollingText.length());
+                displayText = part1 + part2;
+            } else {
+                displayText = scrollingText.substring(startPos, endPos);
+            }
+            
+            // Move to next position
+            scrollPosition++;
+            
+            // Reset position when we've shown the whole text
+            if (scrollPosition >= scrollingText.length() + cols) {
+                scrollPosition = 0;
+            }
+        }
+        
+        // Center the text on the display
+        centerText(displayText, cols);
+        
+        // Display on first line
+        lcd.setCursor(0, 0);
+        lcd.print(displayText);
+        
+        // Display static second line
+        lcd.setCursor(0, 1);
+        lcd.print("Pilih aktivitas:");
+        
+        lastScrollTime = currentTime;
     }
 }
 

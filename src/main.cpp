@@ -222,7 +222,12 @@ void handleWaitingForInputState() {
     static bool inputStarted = false;
 
     if (!inputStarted) {
-        display.showSelectActivity(santriNama);
+        // Start scrolling the name if it's longer than 16 characters
+        if (santriNama.length() > 16) {
+            display.startScrolling(santriNama, 300); // 300ms delay between scrolls
+        } else {
+            display.showSelectActivity(santriNama);
+        }
         inputStarted = true;
         stateStartTime = millis();
     }
@@ -234,6 +239,9 @@ void handleWaitingForInputState() {
         buzzer.playClick();
         Serial.print("Button pressed: ");
         Serial.println(buttonPressed);
+        
+        // Stop scrolling when button is pressed
+        display.stopScrolling();
 
         transitionToState(SUBMITTING);
     }
