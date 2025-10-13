@@ -14,10 +14,17 @@ unsigned long ota_progress_millis = 0;
 
 OTAHandler::OTAHandler() : server(nullptr), isRunning(false), lastOTACheck(0),
     otaInProgress(false), otaProgress(0), otaTotal(100), otaSuccess(false),
-    shouldTriggerOTAProgress(false), shouldTriggerOTAComplete(false) {}
+    shouldTriggerOTAProgress(false), shouldTriggerOTAComplete(false) {
+    // Initialize default auth credentials
+    strcpy(authUsername, "admin");
+    strcpy(authPassword, "santri123");
+}
 
 bool OTAHandler::begin(uint16_t port) {
     Serial.println("Starting OTA Web Server...");
+
+    // Load authentication credentials
+    loadAuthCredentials();
 
     // Initialize mDNS
     const char* hostname = configManager.getMdnsHostname();
@@ -50,7 +57,7 @@ bool OTAHandler::begin(uint16_t port) {
         return false;
     }
 
-    ElegantOTA.setAuth(OTA_USERNAME, OTA_PASSWORD);
+    ElegantOTA.setAuth(authUsername, authPassword);
     ElegantOTA.setAutoReboot(true);
     ElegantOTA.begin(server);
     ElegantOTA.onProgress([this](size_t current, size_t final) {
@@ -166,6 +173,11 @@ void OTAHandler::setupWebServer() {
 
     // Configuration page
     server->on("/config", HTTP_GET, [&](AsyncWebServerRequest *request) {
+        if (!authenticateRequest(request)) {
+            request->requestAuthentication();
+            return;
+        }
+        
         String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - Configuration</title>";
         html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
         html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
@@ -186,6 +198,14 @@ void OTAHandler::setupWebServer() {
         html += "<input type='text' id='hostname' name='hostname' value='"+String(configManager.getMdnsHostname())+"' required>";
         html += "<button type='submit' class='btn btn-success'>Save Configuration</button>";
         html += "</form>";
+        html += "<br><hr><h3>Authentication Settings</h3>";
+        html += "<form method='POST' action='/auth-change'>";
+        html += "<label for='newUsername'>New Username:</label>";
+        html += "<input type='text' id='newUsername' name='newUsername' value='"+String(authUsername)+"' required>";
+        html += "<label for='newPassword'>New Password:</label>";
+        html += "<input type='password' id='newPassword' name='newPassword' placeholder='Enter new password' required>";
+        html += "<button type='submit' class='btn btn-success'>Change Authentication</button>";
+        html += "</form>";
         html += "<br><form method='POST' action='/config/reset' onsubmit='return confirm(\"Are you sure you want to reset to defaults?\")'>";
         html += "<button type='submit' class='btn btn-danger'>Reset to Defaults</button>";
         html += "</form>";
@@ -199,6 +219,11 @@ void OTAHandler::setupWebServer() {
 
     // Configuration save endpoint
     server->on("/config", HTTP_POST, [&](AsyncWebServerRequest *request) {
+        if (!authenticateRequest(request)) {
+            request->requestAuthentication();
+            return;
+        }
+        
         String apiUrl = request->getParam("apiUrl")->value();
         String hostname = request->getParam("hostname")->value();
         
@@ -250,8 +275,66 @@ void OTAHandler::setupWebServer() {
         }
     });
 
+    // Authentication change endpoint
+    server->on("/auth-change", HTTP_POST, [&](AsyncWebServerRequest *request) {
+        if (!authenticateRequest(request)) {
+            request->requestAuthentication();
+            return;
+        }
+        
+        String newUsername = request->getParam("newUsername")->value();
+        String newPassword = request->getParam("newPassword")->value();
+        
+        bool success = true;
+        String message = "";
+        
+        // Validate new credentials
+        if (newUsername.length() < 3 || newUsername.length() > 31) {
+            success = false;
+            message += "Username must be 3-31 characters. ";
+        }
+        
+        if (newPassword.length() < 3 || newPassword.length() > 31) {
+            success = false;
+            message += "Password must be 3-31 characters. ";
+        }
+        
+        if (success) {
+            strcpy(authUsername, newUsername.c_str());
+            strcpy(authPassword, newPassword.c_str());
+            saveAuthCredentials();
+            
+            // Update ElegantOTA credentials
+            ElegantOTA.setAuth(authUsername, authPassword);
+            
+            message = "Authentication credentials updated successfully!";
+            Serial.printf("Auth credentials changed to: %s\n", authUsername);
+        }
+        
+        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - Auth Changed</title>";
+        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
+        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
+        html += ".alert{padding:15px;margin:15px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
+        html += ".alert-error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}";
+        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
+        html += "<h1>"+String(DEVICE_NAME)+" - Authentication Changed</h1>";
+        html += "<div class='form-container'>";
+        html += "<div class='alert " + String(success ? "alert-success" : "alert-error") + "'>" + message + "</div>";
+        html += "<a href='/config'><button class='btn'>Back to Configuration</button></a>";
+        html += "<a href='/'><button class='btn'>Back to Main</button></a>";
+        html += "</div></body></html>";
+        
+        request->send(200, "text/html", html);
+    });
+
     // Configuration reset endpoint
     server->on("/config/reset", HTTP_POST, [&](AsyncWebServerRequest *request) {
+        if (!authenticateRequest(request)) {
+            request->requestAuthentication();
+            return;
+        }
+        
         configManager.resetToDefaults();
         configManager.saveConfig();
         
@@ -275,6 +358,11 @@ void OTAHandler::setupWebServer() {
 
     // Configuration clear EEPROM endpoint
     server->on("/config/clear", HTTP_POST, [&](AsyncWebServerRequest *request) {
+        if (!authenticateRequest(request)) {
+            request->requestAuthentication();
+            return;
+        }
+        
         configManager.clearEEPROM();
         
         String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - EEPROM Cleared</title>";
@@ -322,6 +410,11 @@ void OTAHandler::setupWebServer() {
 
     // Force mDNS restart endpoint
     server->on("/mdns-restart", HTTP_POST, [&](AsyncWebServerRequest *request) {
+        if (!authenticateRequest(request)) {
+            request->requestAuthentication();
+            return;
+        }
+        
         Serial.println("Force mDNS restart requested via web interface");
         restartMdns();
         
@@ -345,6 +438,76 @@ void OTAHandler::setupWebServer() {
         
         request->send(200, "text/html", html);
     });
+}
+
+void OTAHandler::loadAuthCredentials() {
+    Serial.println("Loading authentication credentials...");
+    
+    // Try to load from EEPROM (offset 200 to avoid conflict with config)
+    EEPROM.begin(512);
+    char tempUsername[32];
+    char tempPassword[32];
+    memset(tempUsername, 0, sizeof(tempUsername));
+    memset(tempPassword, 0, sizeof(tempPassword));
+    
+    EEPROM.get(200, tempUsername);
+    EEPROM.get(232, tempPassword);
+    
+    // Validate loaded credentials
+    if (tempUsername[0] != '\0' && tempPassword[0] != '\0' &&
+        strnlen(tempUsername, sizeof(tempUsername)) < sizeof(tempUsername) &&
+        strnlen(tempPassword, sizeof(tempPassword)) < sizeof(tempPassword)) {
+        strcpy(authUsername, tempUsername);
+        strcpy(authPassword, tempPassword);
+        Serial.printf("Auth credentials loaded: %s\n", authUsername);
+    } else {
+        Serial.println("Using default auth credentials");
+        saveAuthCredentials(); // Save defaults to EEPROM
+    }
+}
+
+void OTAHandler::saveAuthCredentials() {
+    Serial.println("Saving authentication credentials...");
+    
+    EEPROM.put(200, authUsername);
+    EEPROM.put(232, authPassword);
+    EEPROM.commit();
+    
+    Serial.printf("Auth credentials saved: %s\n", authUsername);
+}
+
+bool OTAHandler::authenticateRequest(AsyncWebServerRequest *request) {
+    // Use AsyncWebServer's built-in Basic Auth check
+    return request->authenticate(authUsername, authPassword);
+}
+
+String OTAHandler::base64Decode(String input) {
+    String output = "";
+    int inputLen = input.length();
+    
+    for (int i = 0; i < inputLen; i += 4) {
+        uint32_t value = 0;
+        
+        for (int j = 0; j < 4; j++) {
+            char c = input.charAt(i + j);
+            if (c >= 'A' && c <= 'Z') value |= (c - 'A') << (18 - j * 6);
+            else if (c >= 'a' && c <= 'z') value |= (c - 'a' + 26) << (18 - j * 6);
+            else if (c >= '0' && c <= '9') value |= (c - '0' + 52) << (18 - j * 6);
+            else if (c == '+') value |= 62 << (18 - j * 6);
+            else if (c == '/') value |= 63 << (18 - j * 6);
+            else if (c == '=') break;
+        }
+        
+        output += char((value >> 16) & 0xFF);
+        if (i + 2 < inputLen && input.charAt(i + 2) != '=') {
+            output += char((value >> 8) & 0xFF);
+        }
+        if (i + 3 < inputLen && input.charAt(i + 3) != '=') {
+            output += char(value & 0xFF);
+        }
+    }
+    
+    return output;
 }
 
 String OTAHandler::getDeviceInfo() {

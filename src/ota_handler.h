@@ -32,10 +32,20 @@ private:
     // OTA Configuration
     static const char* otaUsername;
     static const char* otaPassword;
+    
+    // Authentication credentials (stored in EEPROM)
+    char authUsername[32];
+    char authPassword[32];
 
     // Helper methods
     void setupWebServer();
     String getDeviceInfo();
+    
+    // Authentication management
+    void loadAuthCredentials();
+    void saveAuthCredentials();
+    bool authenticateRequest(AsyncWebServerRequest *request);
+    String base64Decode(String input);
 
 public:
     OTAHandler();
