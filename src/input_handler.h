@@ -5,31 +5,52 @@
 #include "config.h"
 
 // =============================================
-// BUTTON CLASS
+// TOGGLE SWITCH CLASS
 // =============================================
 
-class Button {
+class ToggleSwitch {
 private:
-    uint8_t pin;
-    bool lastState;
-    bool currentState;
+    uint8_t pinA;
+    uint8_t pinB;
+    int lastPosition;
+    int currentPosition;
     unsigned long lastDebounceTime;
-    unsigned long lastPressTime;
-    bool isPressed;
     uint16_t debounceDelay;
 
 public:
-    Button(uint8_t buttonPin, uint16_t debounceMs = BUTTON_DEBOUNCE_DELAY);
+    ToggleSwitch(uint8_t switchPinA, uint8_t switchPinB, uint16_t debounceMs = 50);
 
     void begin();
     void update();
-    bool isButtonPressed();
-    bool wasButtonPressed();  // Returns true only once per press
-    bool isButtonHeld(uint32_t holdTimeMs = 1000);  // Check if button is held for specified time
-    unsigned long getLastPressDuration();  // Get duration of last press in milliseconds
+    int getCurrentPosition();  // Returns 1, 2, or 3
+    bool hasPositionChanged();  // Returns true only once per position change
+    String getPositionName();  // Returns "INST_1", "INST_2", or "INST_3"
 
 private:
-    void readState();
+    void readPosition();
+};
+
+// =============================================
+// INSTITUTION LED INDICATOR CLASS
+// =============================================
+
+class InstitutionLEDs {
+private:
+    uint8_t led1Pin;
+    uint8_t led2Pin;
+    uint8_t led3Pin;
+    int currentActiveLED;
+
+public:
+    InstitutionLEDs(uint8_t pin1, uint8_t pin2, uint8_t pin3);
+
+    void begin();
+    void setActiveInstitution(int institution);  // 1, 2, or 3
+    void turnOffAll();
+    void blinkAll(int times = 3, int delayMs = 200);
+
+private:
+    void updateLEDs();
 };
 
 // =============================================
@@ -38,11 +59,9 @@ private:
 
 class InputHandler {
 private:
-    Button* button1;
-    Button* button2;
-    Button* button3;
-
-    unsigned long lastButtonCheck;
+    ToggleSwitch* toggleSwitch;
+    InstitutionLEDs* institutionLEDs;
+    unsigned long lastCheckTime;
 
 public:
     InputHandler();
@@ -50,31 +69,22 @@ public:
     void begin();
     void update();
 
-    // Check for button presses (returns button number 1-3, or 0 if none)
-    int checkButtonPressed();
+    // Get current institution from toggle switch
+    int getCurrentInstitution();  // Returns 1, 2, or 3
+    
+    // Check if institution has changed
+    bool hasInstitutionChanged();
+    
+    // Get institution name
+    String getInstitutionName();
 
-    // Check if any button is currently pressed
-    bool isAnyButtonPressed();
-
-    // Get specific button states
-    bool isButton1Pressed();
-    bool isButton2Pressed();
-    bool isButton3Pressed();
-
-    // Advanced button functions
-    bool wasButton1Pressed();  // Returns true only once per press
-    bool wasButton2Pressed();
-    bool wasButton3Pressed();
-
-    // Check for long press (held for more than 2 seconds)
-    bool isButton1LongPressed();
-    bool isButton2LongPressed();
-    bool isButton3LongPressed();
+    // LED control
+    void setActiveInstitution(int institution);
+    void blinkInstitutionLEDs();
 
 private:
-    void initializeButtons();
-    void updateButtons();
-    void debugButtonStates();
+    void initializeToggleSwitch();
+    void initializeInstitutionLEDs();
 };
 
 // =============================================
@@ -87,12 +97,7 @@ extern InputHandler inputHandler;
 // UTILITY FUNCTIONS
 // =============================================
 
-// Non-blocking button check with timeout
-int waitForButtonPress(unsigned long timeoutMs = 10000);  // Returns button number or 0 if timeout
+// Get institution name from number
+String getInstitutionName(int institution);
 
 #endif // INPUT_HANDLER_H
-
-
-// TODO:
-// Mau pake 3-Pin Toggle Switch saja bisa lgsg replace button 1, 2, 3
-// https://www.youtube.com/watch?v=FEdvoMx7-Mo

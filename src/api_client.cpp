@@ -5,16 +5,31 @@
 // CLASS IMPLEMENTATION
 // =============================================
 
-APIClient::APIClient(const String &serverURL) : baseURL(serverURL), requestTimeout(5000)
+APIClient::APIClient() : baseURL(API_BASE_URL), requestTimeout(5000)
 { // 5 second timeout
     lastResponseCode = 0;
     lastResponseBody = "";
 }
 
-void APIClient::begin()
+void APIClient::begin(const char* serverURL)
 {
+    if (serverURL) {
+        baseURL = String(serverURL);
+        Serial.printf("API Client initialized with URL: %s\n", serverURL);
+    } else {
+        Serial.printf("API Client initialized with default URL: %s\n", baseURL.c_str());
+    }
+    
     // Initialize HTTP client if needed
     httpClient.setTimeout(requestTimeout);
+}
+
+void APIClient::setServerURL(const char* serverURL)
+{
+    if (serverURL) {
+        baseURL = String(serverURL);
+        Serial.printf("API Server URL updated to: %s\n", serverURL);
+    }
 }
 
 bool APIClient::isReady()
@@ -247,7 +262,7 @@ bool APIClient::parseValidationResponse(const String &response, bool &isValid)
         return false;
     }
 
-    if (doc.containsKey("valid"))
+    if (doc["valid"].is<bool>())
     {
         isValid = doc["valid"].as<bool>();
         return true;
@@ -259,7 +274,7 @@ bool APIClient::parseValidationResponse(const String &response, bool &isValid)
 
 bool APIClient::parseActivityResponse(const String &response, bool &success)
 {
-    DynamicJsonDocument doc(256);
+    JsonDocument doc;
 
     DeserializationError error = deserializeJson(doc, response);
 
@@ -270,7 +285,7 @@ bool APIClient::parseActivityResponse(const String &response, bool &success)
     }
 
     // Check for success field or HTTP status
-    if (doc.containsKey("success"))
+    if (doc["success"].is<bool>())
     {
         success = doc["success"].as<bool>();
         return true;

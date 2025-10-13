@@ -7,6 +7,7 @@
 
 // Include all our custom modules
 #include "config.h"
+#include "config_manager.h"
 #include "wifi_handler.h"
 #include "display_manager.h"
 #include "nfc_handler.h"
@@ -331,12 +332,17 @@ void handleValidatingState()
 
 void handleWaitingForInputState()
 {
-    static unsigned long timeoutStartTime = 0;
-
     if (!waitingInputStarted)
     {
         // Start timing for user input
         userInputStartTime = millis();
+        
+        // Get current institution from toggle switch
+        institution = inputHandler.getCurrentInstitution();
+        Serial.printf("Current institution from toggle switch: %d\n", institution);
+        
+        // Update LED indicator
+        inputHandler.setActiveInstitution(institution);
         
         // Start scrolling the name if it's longer than 16 characters
         if (santriNama.length() > 16)
@@ -348,65 +354,33 @@ void handleWaitingForInputState()
             display.showSelectActivity(santriNama);
         }
         waitingInputStarted = true;
-        timeoutStartTime = millis(); // Start timeout timer
-        Serial.println("Started input handling with timeout");
-    }
-
-    // Check for timeout (5 seconds) - simplified logic
-    unsigned long elapsed = millis() - timeoutStartTime;
-    if (elapsed >= 5000) { // 5 seconds timeout
-        Serial.println("Timeout reached - auto-selecting button 1");
-
-        // End timing for user input
+        Serial.println("Started input handling - using current toggle switch position");
+        
+        // End timing for user input (immediate)
         userInputEndTime = millis();
-
-        // Set institution to INSTITUTION_1 for auto-select
-        institution = INSTITUTION_1;
-        Serial.println("INSTITUTION_1 auto-selected");
-
-        // Stop scrolling
-        display.stopScrolling();
-
-        // Show auto-selection message briefly
-        display.showCustomMessage("Auto Select", "Button 1");
-
-        // Simulate button 1 press
+        
+        // Play click sound
         buzzer.playClick();
-        Serial.println("Auto-selected button 1 - transitioning to SUBMITTING");
-
+        
+        // Show brief message
+        display.showCustomMessage("Institution", String(institution));
+        
+        // Transition immediately to SUBMITTING
+        Serial.printf("INSTITUTION_%d selected from toggle switch - transitioning to SUBMITTING\n", institution);
         transitionToState(SUBMITTING);
         return;
     }
 
-    // Check for button press from queue
+    // Check for institution change from queue (if user changes switch during processing)
     InputEvent inputEvent;
     if (xQueueReceive(inputQueue, &inputEvent, 0) == pdTRUE)
     {
-        Serial.printf("State Machine: Received button %d from queue\n", inputEvent.buttonPressed);
+        Serial.printf("State Machine: Institution changed to %d during processing\n", inputEvent.buttonPressed);
         
-        // End timing for user input
-        userInputEndTime = millis();
-        
-        buzzer.playClick();
-        Serial.print("Button pressed: ");
-        Serial.println(inputEvent.buttonPressed);
-
-        // Set institution based on button pressed
-        if (inputEvent.buttonPressed == 1) {
-            institution = INSTITUTION_1;
-            Serial.println("INSTITUTION_1 selected");
-        } else if (inputEvent.buttonPressed == 2) {
-            institution = INSTITUTION_2;
-            Serial.println("INSTITUTION_2 selected");
-        } else if (inputEvent.buttonPressed == 3) {
-            institution = INSTITUTION_3;
-            Serial.println("INSTITUTION_3 selected");
-        }
-
-        // Stop scrolling when button is pressed
-        display.stopScrolling();
-
-        transitionToState(SUBMITTING);
+        // Update institution if user changes switch
+        institution = inputEvent.buttonPressed;
+        inputHandler.setActiveInstitution(institution);
+        Serial.printf("INSTITUTION_%d updated\n", institution);
     }
 }
 
@@ -589,6 +563,13 @@ void transitionToState(SystemState newState)
 
 bool initializeSystem()
 {
+    // Initialize config manager first
+    if (!configManager.begin())
+    {
+        Serial.println("Config Manager initialization failed!");
+        return false;
+    }
+
     // Initialize simple LED first (shows booting animation)
     if (!simpleLED.init())
     {
@@ -613,8 +594,8 @@ bool initializeSystem()
         return false;
     }
 
-    // Initialize API client
-    apiClient.begin();
+    // Initialize API client with dynamic URL
+    apiClient.begin(configManager.getApiBaseUrl());
 
     // Initialize WiFi
     if (!wifiHandler.begin())
@@ -797,15 +778,16 @@ void inputTask(void *parameter)
 
     while (true)
     {
-        // Check for button press
-        int buttonPressed = inputHandler.checkButtonPressed();
-
-        if (buttonPressed > 0)
+        // Update toggle switch and check for institution changes
+        inputHandler.update();
+        
+        if (inputHandler.hasInstitutionChanged())
         {
-            Serial.printf("Input Task: Button %d pressed, sending to queue\n", buttonPressed);
+            int currentInstitution = inputHandler.getCurrentInstitution();
+            Serial.printf("Input Task: Institution changed to %d, sending to queue\n", currentInstitution);
             
             InputEvent inputEvent;
-            inputEvent.buttonPressed = buttonPressed;
+            inputEvent.buttonPressed = currentInstitution;  // Use institution as button number
             inputEvent.timestamp = millis();
 
             // Send to queue (non-blocking)

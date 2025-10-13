@@ -12,10 +12,15 @@
 // LCD I2C Address
 #define LCD_I2C_ADDR    0x27
 
-// Button Pins
-#define BUTTON_1_PIN    45  // GPIO45 for Button 1 (Built-in Key)
-#define BUTTON_2_PIN    4   // GPIO4 for Button 2 (Institution 2)
-#define BUTTON_3_PIN    5   // GPIO5 for Button 3 (Institution 3)
+// Toggle Switch Pins (3-pin SPDT ON-OFF-ON)
+#define SWITCH_PIN_A    20  // GPIO22 for Switch Position A (Institution 1)
+#define SWITCH_PIN_B    19  // GPIO23 for Switch Position B (Institution 3)
+// Position OFF (Institution 2) is when both pins are HIGH (pulled up)
+
+// Institution LED Indicators
+#define LED_INST_1_PIN  21  // GPIO21 for Institution 1 LED
+#define LED_INST_2_PIN  4   // GPIO4 for Institution 2 LED  
+#define LED_INST_3_PIN  5   // GPIO5 for Institution 3 LED
 
 // Buzzer Pin
 #define BUZZER_PIN      7  // GPIO19 for Buzzer
@@ -32,7 +37,7 @@
 // =============================================
 
 // Server Configuration
-#define API_BASE_URL    "http://127.0.0.1:7894"
+#define API_BASE_URL    "http://192.168.87.83:7894"
 
 // Note: Card validation now uses query parameters:
 // GET /api/v1/santri/validate?id_card={uid}&id_santri={santri_id}&id_device={mac_address}

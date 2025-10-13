@@ -1,209 +1,225 @@
 #include "input_handler.h"
 
 // =============================================
-// BUTTON CLASS IMPLEMENTATION
+// TOGGLE SWITCH CLASS IMPLEMENTATION
 // =============================================
 
-Button::Button(uint8_t buttonPin, uint16_t debounceMs) :
-    pin(buttonPin), debounceDelay(debounceMs), lastState(HIGH), currentState(HIGH),
-    lastDebounceTime(0), lastPressTime(0), isPressed(false) {}
+ToggleSwitch::ToggleSwitch(uint8_t switchPinA, uint8_t switchPinB, uint16_t debounceMs) :
+    pinA(switchPinA), pinB(switchPinB), lastPosition(2), currentPosition(2),
+    lastDebounceTime(0), debounceDelay(debounceMs) {}
 
-void Button::begin() {
-    // Special configuration for GPIO 45 (boot button)
-    if (pin == 45) {
-        pinMode(pin, INPUT_PULLUP);
-        Serial.println("GPIO 45 configured as INPUT_PULLUP for boot button");
+void ToggleSwitch::begin() {
+    pinMode(pinA, INPUT_PULLUP);
+    pinMode(pinB, INPUT_PULLUP);
+    
+    // Read initial position
+    readPosition();
+    lastPosition = currentPosition;
+    
+    Serial.printf("Toggle Switch initialized - Pin A: %d, Pin B: %d, Initial position: %d\n", 
+                 pinA, pinB, currentPosition);
+}
+
+void ToggleSwitch::update() {
+    readPosition();
+}
+
+void ToggleSwitch::readPosition() {
+    bool stateA = digitalRead(pinA);
+    bool stateB = digitalRead(pinB);
+    
+    int newPosition;
+    
+    if (stateA == LOW) {
+        // Pin A is LOW - Position 1 (Institution 1)
+        newPosition = 1;
+    } else if (stateB == LOW) {
+        // Pin B is LOW - Position 3 (Institution 3)
+        newPosition = 3;
     } else {
-        pinMode(pin, INPUT_PULLUP);
+        // Both pins HIGH - Position 2 (Institution 2) - OFF position
+        newPosition = 2;
     }
     
-    currentState = digitalRead(pin);
-    lastState = currentState;
-    Serial.printf("Button on GPIO %d initialized - Initial state: %d\n", pin, currentState);
-}
-
-void Button::update() {
-    readState();
-}
-
-void Button::readState() {
-    bool reading = digitalRead(pin);
-
-    if (reading != lastState) {
-        lastDebounceTime = millis();
-    }
-
-    if ((millis() - lastDebounceTime) > debounceDelay) {
-        if (reading != currentState) {
-            Serial.printf("Button GPIO %d: State changed from %d to %d\n", pin, currentState, reading);
-            currentState = reading;
-
-            if (currentState == LOW) {  // Button pressed (assuming pullup)
-                lastPressTime = millis();
-                isPressed = true;
-                Serial.printf("Button GPIO %d: PRESSED (isPressed=true)\n", pin);
-            } else {
-                isPressed = false;
-                Serial.printf("Button GPIO %d: RELEASED (isPressed=false)\n", pin);
-            }
+    if (newPosition != currentPosition) {
+        unsigned long currentTime = millis();
+        if (currentTime - lastDebounceTime > debounceDelay) {
+            Serial.printf("Toggle Switch: Position changed from %d to %d\n", currentPosition, newPosition);
+            lastPosition = currentPosition;
+            currentPosition = newPosition;
+            lastDebounceTime = currentTime;
         }
     }
-
-    lastState = reading;
 }
 
-bool Button::isButtonPressed() {
-    return (currentState == LOW);  // Active LOW for pullup configuration
+int ToggleSwitch::getCurrentPosition() {
+    return currentPosition;
 }
 
-bool Button::wasButtonPressed() {
-    if (isPressed && (currentState == LOW)) {  // Button is currently pressed
-        isPressed = false;  // Reset flag to prevent multiple triggers
+bool ToggleSwitch::hasPositionChanged() {
+    if (currentPosition != lastPosition) {
+        lastPosition = currentPosition;
         return true;
     }
     return false;
 }
 
-bool Button::isButtonHeld(uint32_t holdTimeMs) {
-    if (currentState == LOW) {
-        return (millis() - lastPressTime) >= holdTimeMs;
+String ToggleSwitch::getPositionName() {
+    switch (currentPosition) {
+        case 1: return "INST_1";
+        case 2: return "INST_2";
+        case 3: return "INST_3";
+        default: return "UNKNOWN";
     }
-    return false;
 }
 
-unsigned long Button::getLastPressDuration() {
-    if (currentState == HIGH && lastPressTime > 0) {
-        return millis() - lastPressTime;
+// =============================================
+// INSTITUTION LED INDICATOR CLASS IMPLEMENTATION
+// =============================================
+
+InstitutionLEDs::InstitutionLEDs(uint8_t pin1, uint8_t pin2, uint8_t pin3) :
+    led1Pin(pin1), led2Pin(pin2), led3Pin(pin3), currentActiveLED(0) {}
+
+void InstitutionLEDs::begin() {
+    pinMode(led1Pin, OUTPUT);
+    pinMode(led2Pin, OUTPUT);
+    pinMode(led3Pin, OUTPUT);
+    
+    turnOffAll();
+    
+    Serial.printf("Institution LEDs initialized - Pin 1: %d, Pin 2: %d, Pin 3: %d\n", 
+                 led1Pin, led2Pin, led3Pin);
+}
+
+void InstitutionLEDs::setActiveInstitution(int institution) {
+    currentActiveLED = institution;
+    updateLEDs();
+}
+
+void InstitutionLEDs::turnOffAll() {
+    digitalWrite(led1Pin, LOW);
+    digitalWrite(led2Pin, LOW);
+    digitalWrite(led3Pin, LOW);
+    currentActiveLED = 0;
+}
+
+void InstitutionLEDs::blinkAll(int times, int delayMs) {
+    for (int i = 0; i < times; i++) {
+        digitalWrite(led1Pin, HIGH);
+        digitalWrite(led2Pin, HIGH);
+        digitalWrite(led3Pin, HIGH);
+        delay(delayMs);
+        
+        digitalWrite(led1Pin, LOW);
+        digitalWrite(led2Pin, LOW);
+        digitalWrite(led3Pin, LOW);
+        delay(delayMs);
     }
-    return 0;
+}
+
+void InstitutionLEDs::updateLEDs() {
+    // Turn off all LEDs first
+    digitalWrite(led1Pin, LOW);
+    digitalWrite(led2Pin, LOW);
+    digitalWrite(led3Pin, LOW);
+    
+    // Turn on the active LED
+    switch (currentActiveLED) {
+        case 1:
+            digitalWrite(led1Pin, HIGH);
+            break;
+        case 2:
+            digitalWrite(led2Pin, HIGH);
+            break;
+        case 3:
+            digitalWrite(led3Pin, HIGH);
+            break;
+    }
 }
 
 // =============================================
 // INPUT HANDLER CLASS IMPLEMENTATION
 // =============================================
 
-InputHandler::InputHandler() : button1(nullptr), button2(nullptr), button3(nullptr), lastButtonCheck(0) {}
+InputHandler::InputHandler() : toggleSwitch(nullptr), institutionLEDs(nullptr), lastCheckTime(0) {}
 
 void InputHandler::begin() {
-    initializeButtons();
+    initializeToggleSwitch();
+    initializeInstitutionLEDs();
 }
 
-void InputHandler::initializeButtons() {
-    Serial.println("Initializing buttons...");
-    Serial.printf("Button 1 Pin: %d (GPIO 45 - Built-in Key)\n", BUTTON_1_PIN);
-    Serial.printf("Button 2 Pin: %d (GPIO 4)\n", BUTTON_2_PIN);
-    Serial.printf("Button 3 Pin: %d (GPIO 5)\n", BUTTON_3_PIN);
-    
-    button1 = new Button(BUTTON_1_PIN);
-    button2 = new Button(BUTTON_2_PIN);
-    button3 = new Button(BUTTON_3_PIN);
-
-    button1->begin();
-    button2->begin();
-    button3->begin();
-    
-    Serial.println("Buttons initialized successfully!");
+void InputHandler::initializeToggleSwitch() {
+    Serial.println("Initializing Toggle Switch...");
+    toggleSwitch = new ToggleSwitch(SWITCH_PIN_A, SWITCH_PIN_B);
+    toggleSwitch->begin();
+    Serial.println("Toggle Switch initialized successfully!");
 }
 
-void InputHandler::debugButtonStates() {
-    static unsigned long lastDebugTime = 0;
+void InputHandler::initializeInstitutionLEDs() {
+    Serial.println("Initializing Institution LEDs...");
+    institutionLEDs = new InstitutionLEDs(LED_INST_1_PIN, LED_INST_2_PIN, LED_INST_3_PIN);
+    institutionLEDs->begin();
     
-    // Debug every 5 seconds to reduce frequency
-    if (millis() - lastDebugTime >= 5000) {
-        Serial.printf("Button States - GPIO 45: %d, GPIO 4: %d, GPIO 5: %d\n", 
-                     digitalRead(BUTTON_1_PIN), 
-                     digitalRead(BUTTON_2_PIN), 
-                     digitalRead(BUTTON_3_PIN));
-        lastDebugTime = millis();
+    // Set initial LED based on switch position
+    int currentInstitution = getCurrentInstitution();
+    setActiveInstitution(currentInstitution);
+    
+    Serial.println("Institution LEDs initialized successfully!");
+}
+
+void InputHandler::update() {
+    if (millis() - lastCheckTime >= 50) {  // Update every 50ms
+        if (toggleSwitch) {
+            toggleSwitch->update();
+        }
+        lastCheckTime = millis();
     }
 }
 
-void InputHandler::updateButtons() {
-    if (button1) button1->update();
-    if (button2) button2->update();
-    if (button3) button3->update();
-    
-    // Debug button states less frequently
-    // debugButtonStates();
-}
-
-int InputHandler::checkButtonPressed() {
-    updateButtons();
-
-    // Debug: Check individual button states
-    if (button1 && button1->wasButtonPressed()) {
-        Serial.println("Button 1 (GPIO 45) wasButtonPressed() returned true!");
-        return 1;
+int InputHandler::getCurrentInstitution() {
+    if (toggleSwitch) {
+        return toggleSwitch->getCurrentPosition();
     }
-    if (button2 && button2->wasButtonPressed()) {
-        Serial.println("Button 2 (GPIO 4) wasButtonPressed() returned true!");
-        return 2;
+    return 2;  // Default to Institution 2 (OFF position)
+}
+
+bool InputHandler::hasInstitutionChanged() {
+    if (toggleSwitch) {
+        return toggleSwitch->hasPositionChanged();
     }
-    if (button3 && button3->wasButtonPressed()) {
-        Serial.println("Button 3 (GPIO 5) wasButtonPressed() returned true!");
-        return 3;
+    return false;
+}
+
+String InputHandler::getInstitutionName() {
+    if (toggleSwitch) {
+        return toggleSwitch->getPositionName();
     }
-
-    return 0;  // No button pressed
+    return "INST_2";
 }
 
-bool InputHandler::isAnyButtonPressed() {
-    updateButtons();
-    return (isButton1Pressed() || isButton2Pressed() || isButton3Pressed());
+void InputHandler::setActiveInstitution(int institution) {
+    if (institutionLEDs) {
+        institutionLEDs->setActiveInstitution(institution);
+    }
 }
 
-bool InputHandler::isButton1Pressed() {
-    return (button1 && button1->isButtonPressed());
-}
-
-bool InputHandler::isButton2Pressed() {
-    return (button2 && button2->isButtonPressed());
-}
-
-bool InputHandler::isButton3Pressed() {
-    return (button3 && button3->isButtonPressed());
-}
-
-bool InputHandler::wasButton1Pressed() {
-    return (button1 && button1->wasButtonPressed());
-}
-
-bool InputHandler::wasButton2Pressed() {
-    return (button2 && button2->wasButtonPressed());
-}
-
-bool InputHandler::wasButton3Pressed() {
-    return (button3 && button3->wasButtonPressed());
-}
-
-bool InputHandler::isButton1LongPressed() {
-    return (button1 && button1->isButtonHeld(2000));  // 2 second long press
-}
-
-bool InputHandler::isButton2LongPressed() {
-    return (button2 && button2->isButtonHeld(2000));
-}
-
-bool InputHandler::isButton3LongPressed() {
-    return (button3 && button3->isButtonHeld(2000));
+void InputHandler::blinkInstitutionLEDs() {
+    if (institutionLEDs) {
+        institutionLEDs->blinkAll();
+    }
 }
 
 // =============================================
 // UTILITY FUNCTIONS
 // =============================================
 
-int waitForButtonPress(unsigned long timeoutMs) {
-    unsigned long startTime = millis();
-
-    while (millis() - startTime < timeoutMs) {
-        int button = inputHandler.checkButtonPressed();
-        if (button > 0) {
-            return button;
-        }
-        delay(10);  // Small delay to prevent busy waiting
+String getInstitutionName(int institution) {
+    switch (institution) {
+        case 1: return "INSTITUTION_1";
+        case 2: return "INSTITUTION_2";
+        case 3: return "INSTITUTION_3";
+        default: return "UNKNOWN";
     }
-
-    return 0;  // Timeout
 }
 
 // =============================================

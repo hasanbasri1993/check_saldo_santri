@@ -32,11 +32,12 @@ private:
     bool parseActivityResponse(const String& response, bool& success);
 
 public:
-    APIClient(const String& serverURL = API_BASE_URL);
+    APIClient();
 
     // Initialization
-    void begin();
+    void begin(const char* serverURL = nullptr);
     bool isReady();
+    void setServerURL(const char* serverURL);
 
     // Card validation with new endpoint format
     bool validateSantriCard(const String& cardUID, const String& santriID);

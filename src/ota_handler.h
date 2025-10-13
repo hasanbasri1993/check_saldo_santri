@@ -43,6 +43,7 @@ public:
     // Initialization
     bool begin(uint16_t port = 8080);
     void end();
+    void restartMdns();
 
     // OTA Management
     bool isOTARunning() const { return isRunning; }
