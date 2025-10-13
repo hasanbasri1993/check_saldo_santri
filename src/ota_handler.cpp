@@ -57,8 +57,6 @@ bool OTAHandler::begin(uint16_t port) {
         return false;
     }
 
-    ElegantOTA.setAuth(authUsername, authPassword);
-    ElegantOTA.setAutoReboot(true);
     ElegantOTA.begin(server);
     ElegantOTA.onProgress([this](size_t current, size_t final) {
         onOTAProgress(current, final);
@@ -66,12 +64,6 @@ bool OTAHandler::begin(uint16_t port) {
     ElegantOTA.onEnd([](bool success) {
         if (success) {
           Serial.println("OTA update completed successfully.");
-          unsigned long _reboot_request_millis = 0;
-
-          if (millis() - _reboot_request_millis > 2000) {
-              ESP.restart();
-          }
-    
         } else {
           Serial.println("OTA update failed.");
           // Add failure handling here.
@@ -83,6 +75,10 @@ bool OTAHandler::begin(uint16_t port) {
 
     // Start server
     server->begin();
+
+    ElegantOTA.setAuth(authUsername, authPassword);
+    ElegantOTA.setAutoReboot(true);
+
     isRunning = true;
 
     Serial.print("OTA Web Server started on port ");
