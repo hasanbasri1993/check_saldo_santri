@@ -5,6 +5,7 @@
 #include <WiFi.h>
 #include <WiFiManager.h>
 #include "config.h"
+#include "config_manager.h"
 #include "display_manager.h"
 #include "buzzer_feedback.h"
 
