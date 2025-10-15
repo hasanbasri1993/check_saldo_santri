@@ -118,12 +118,7 @@ void OTAHandler::restartMdns() {
     
     if (MDNS.begin(hostname)) {
         Serial.printf("mDNS restarted successfully with hostname: %s.local\n", hostname);
-        MDNS.addService("http", "tcp", 8080);
-        MDNS.addServiceTxt("http", "tcp", "device", DEVICE_NAME);
-        MDNS.addServiceTxt("http", "tcp", "version", VERSION);
-        MDNS.addServiceTxt("http", "tcp", "hostname", hostname);
-        MDNS.addServiceTxt("http", "tcp", "mac", WiFi.macAddress().c_str());
-        
+        MDNS.addService("http", "tcp", 7779);        
         Serial.println("mDNS service re-registered");
     } else {
         Serial.println("Failed to restart mDNS");
@@ -220,11 +215,26 @@ void OTAHandler::setupWebServer() {
             return;
         }
         
-        String apiUrl = request->getParam("apiUrl")->value();
-        String hostname = request->getParam("hostname")->value();
+        // Safely read POST form parameters (body params)
+        const AsyncWebParameter* pApi = request->getParam("apiUrl", true);
+        const AsyncWebParameter* pHost = request->getParam("hostname", true);
         
         bool success = true;
         String message = "";
+        
+        if (!pApi || !pHost) {
+            success = false;
+            message = "Missing parameters.";
+        }
+        
+        String apiUrl = success ? pApi->value() : String("");
+        String hostname = success ? pHost->value() : String("");
+        apiUrl.trim();
+        hostname.trim();
+        if (success && (apiUrl.length() == 0 || hostname.length() == 0)) {
+            success = false;
+            message = "Empty parameters are not allowed.";
+        }
         
         if (!configManager.setApiBaseUrl(apiUrl.c_str())) {
             success = false;

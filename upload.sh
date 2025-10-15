@@ -8,7 +8,7 @@
 # ==============================================================================
 
 # --- Konfigurasi ---
-DEFAULT_HOST="http://192.168.87.97:8080"
+DEFAULT_HOST="http://192.168.87.97:7779"
 # Kredensial Basic Auth default (sesuaikan bila perlu)
 DEFAULT_USERNAME="admin"
 DEFAULT_PASSWORD="santri123"

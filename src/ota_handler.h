@@ -51,7 +51,7 @@ public:
     OTAHandler();
 
     // Initialization
-    bool begin(uint16_t port = 8080);
+    bool begin(uint16_t port = 7779);
     void end();
     void restartMdns();
 
@@ -92,7 +92,7 @@ extern OTAHandler otaHandler;
 // =============================================
 
 // Quick OTA setup with default credentials
-bool setupOTA(uint16_t port = 8080);
+bool setupOTA(uint16_t port = 7779);
 
 // Check if OTA is active
 bool isOTAEnabled();

@@ -7,7 +7,7 @@ rem    upload.bat [optional_host_url] [optional_username] [optional_password]
 rem ==============================================================================
 
 :: --- Konfigurasi ---
-set "DEFAULT_HOST=http://192.168.87.97:8080"
+set "DEFAULT_HOST=http://192.168.87.97:7779"
 set "HOST=%DEFAULT_HOST%"
 
 rem Kredensial Basic Auth default (ubah bila perlu)

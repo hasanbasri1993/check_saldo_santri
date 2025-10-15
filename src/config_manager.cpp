@@ -132,6 +132,10 @@ DeviceConfig& ConfigManager::getConfig() {
 }
 
 bool ConfigManager::setApiBaseUrl(const char* url) {
+    if (url == nullptr) {
+        Serial.println("Invalid API URL: null pointer");
+        return false;
+    }
     if (!isValidUrl(url)) {
         Serial.printf("Invalid API URL: %s\n", url);
         return false;
@@ -145,6 +149,10 @@ bool ConfigManager::setApiBaseUrl(const char* url) {
 }
 
 bool ConfigManager::setMdnsHostname(const char* hostname) {
+    if (hostname == nullptr) {
+        Serial.println("Invalid mDNS hostname: null pointer");
+        return false;
+    }
     if (!isValidHostname(hostname)) {
         Serial.printf("Invalid mDNS hostname: %s\n", hostname);
         return false;
@@ -158,7 +166,9 @@ bool ConfigManager::setMdnsHostname(const char* hostname) {
 }
 
 bool ConfigManager::isValidUrl(const char* url) {
-    if (!url || strlen(url) == 0) return false;
+    if (!url) return false;
+    size_t len = strnlen(url, 256);
+    if (len == 0 || len >= 256) return false;
     
     // Basic URL validation
     String urlStr = String(url);
@@ -166,17 +176,18 @@ bool ConfigManager::isValidUrl(const char* url) {
 }
 
 bool ConfigManager::isValidHostname(const char* hostname) {
-    if (!hostname || strlen(hostname) == 0) return false;
+    if (!hostname) return false;
+    size_t len = strnlen(hostname, 64);
+    if (len == 0 || len > 32) return false;
     
     // Basic hostname validation (alphanumeric and hyphens only)
-    for (int i = 0; i < strlen(hostname); i++) {
+    for (size_t i = 0; i < len; i++) {
         char c = hostname[i];
         if (!isalnum(c) && c != '-') {
             return false;
         }
     }
-    
-    return strlen(hostname) <= 32;
+    return true;
 }
 
 bool ConfigManager::validateConfig() {

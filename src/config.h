@@ -48,7 +48,7 @@
 
 // OTA (Over-The-Air) Update Configuration:
 // OTA runs in background after WiFi connection (no LCD display)
-// Default OTA URL: http://<device_ip>:8080/update
+// Default OTA URL: http://<device_ip>:7779/update
 // Username: admin
 // Password: santri123
 // Upload .bin file through web interface for wireless firmware updates
