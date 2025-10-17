@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include "config_manager.h"
+#include <Preferences.h>
 
 // =============================================
 // CLASS IMPLEMENTATION
@@ -394,13 +395,13 @@ void OTAHandler::setupWebServer() {
             return;
         }
         
-        configManager.clearEEPROM();
+        configManager.clearPreferences();
         
         // Redirect back to main page
         String redirectHtml = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2;url=/'></head><body>";
         redirectHtml += "<div style='text-align:center;padding:50px;font-family:Arial,sans-serif'>";
         redirectHtml += "<h2>Success!</h2>";
-        redirectHtml += "<p>EEPROM cleared successfully! Device will restart.</p>";
+        redirectHtml += "<p>Preferences cleared successfully! Device will restart.</p>";
         redirectHtml += "<p>Redirecting to main page...</p>";
         redirectHtml += "</div></body></html>";
         
@@ -438,35 +439,35 @@ void OTAHandler::setupWebServer() {
 void OTAHandler::loadAuthCredentials() {
     Serial.println("Loading authentication credentials...");
     
-    // Try to load from EEPROM (offset 200 to avoid conflict with config)
-    EEPROM.begin(512);
-    char tempUsername[32];
-    char tempPassword[32];
-    memset(tempUsername, 0, sizeof(tempUsername));
-    memset(tempPassword, 0, sizeof(tempPassword));
+    Preferences authPrefs;
+    authPrefs.begin("auth_creds", false);
     
-    EEPROM.get(200, tempUsername);
-    EEPROM.get(232, tempPassword);
+    // Load credentials with defaults
+    String username = authPrefs.getString("username", "admin");
+    String password = authPrefs.getString("password", "santri123");
     
-    // Validate loaded credentials
-    if (tempUsername[0] != '\0' && tempPassword[0] != '\0' &&
-        strnlen(tempUsername, sizeof(tempUsername)) < sizeof(tempUsername) &&
-        strnlen(tempPassword, sizeof(tempPassword)) < sizeof(tempPassword)) {
-        strcpy(authUsername, tempUsername);
-        strcpy(authPassword, tempPassword);
-        Serial.printf("Auth credentials loaded: %s\n", authUsername);
-    } else {
-        Serial.println("Using default auth credentials");
-        saveAuthCredentials(); // Save defaults to EEPROM
-    }
+    // Copy to static variables
+    strncpy(authUsername, username.c_str(), sizeof(authUsername) - 1);
+    authUsername[sizeof(authUsername) - 1] = '\0';
+    
+    strncpy(authPassword, password.c_str(), sizeof(authPassword) - 1);
+    authPassword[sizeof(authPassword) - 1] = '\0';
+    
+    authPrefs.end();
+    
+    Serial.printf("Auth credentials loaded: %s\n", authUsername);
 }
 
 void OTAHandler::saveAuthCredentials() {
     Serial.println("Saving authentication credentials...");
     
-    EEPROM.put(200, authUsername);
-    EEPROM.put(232, authPassword);
-    EEPROM.commit();
+    Preferences authPrefs;
+    authPrefs.begin("auth_creds", false);
+    
+    authPrefs.putString("username", authUsername);
+    authPrefs.putString("password", authPassword);
+    
+    authPrefs.end();
     
     Serial.printf("Auth credentials saved: %s\n", authUsername);
 }

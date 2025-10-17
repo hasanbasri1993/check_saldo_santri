@@ -2,7 +2,7 @@
 #define CONFIG_MANAGER_H
 
 #include <Arduino.h>
-#include <EEPROM.h>
+#include <Preferences.h>
 #include <ArduinoJson.h>
 
 // =============================================
@@ -13,14 +13,14 @@ struct DeviceConfig {
     char apiBaseUrl[128];
     char mdnsHostname[32];
     char deviceName[64];
-    bool configValid;
+    uint8_t configValid;  // Use uint8_t instead of bool for better EEPROM compatibility
 
     // Constructor with defaults
     DeviceConfig() {
         strcpy(apiBaseUrl, "http://192.168.87.83:7894");
         strcpy(mdnsHostname, "santri-reader");
         strcpy(deviceName, "Santri Card Reader");
-        configValid = true;
+        configValid = 1;  // Use 1 instead of true
     }
 };
 
@@ -30,10 +30,10 @@ struct DeviceConfig {
 
 class ConfigManager {
 private:
-    static const int EEPROM_SIZE = 512;
-    static const int CONFIG_ADDRESS = 0;
+    Preferences preferences;
     DeviceConfig config;
     bool initialized;
+    static const char* NAMESPACE;
 
 public:
     ConfigManager();
@@ -46,7 +46,7 @@ public:
     bool loadConfig();
     bool saveConfig();
     void resetToDefaults();
-    void clearEEPROM();
+    void clearPreferences();
     
     // Getters
     const char* getApiBaseUrl();
@@ -59,6 +59,10 @@ public:
     bool setMdnsHostname(const char* hostname);
     bool setDeviceName(const char* name);
     
+    // Debug functions
+    void printPreferencesContent();
+    void testPreferencesPersistence();
+    
     // Validation
     bool isValidUrl(const char* url);
     bool isValidHostname(const char* hostname);
@@ -68,8 +72,9 @@ public:
     bool fromJson(const String& json);
     
 private:
-    void initializeEEPROM();
+    void initializePreferences();
     bool validateConfig();
+    bool validateConfig(const DeviceConfig& testConfig);
 };
 
 // =============================================
