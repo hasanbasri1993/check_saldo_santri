@@ -34,6 +34,7 @@ bool ConfigManager::begin() {
     Serial.println("Config Manager initialized successfully");
     Serial.printf("API Base URL: %s\n", config.apiBaseUrl);
     Serial.printf("mDNS Hostname: %s\n", config.mdnsHostname);
+    Serial.printf("Device Name: %s\n", config.deviceName);
     
     return true;
 }
@@ -127,6 +128,10 @@ const char* ConfigManager::getMdnsHostname() {
     return config.mdnsHostname;
 }
 
+const char* ConfigManager::getDeviceName() {
+    return config.deviceName;
+}
+
 DeviceConfig& ConfigManager::getConfig() {
     return config;
 }
@@ -165,6 +170,25 @@ bool ConfigManager::setMdnsHostname(const char* hostname) {
     return true;
 }
 
+bool ConfigManager::setDeviceName(const char* name) {
+    if (name == nullptr) {
+        Serial.println("Invalid device name: null pointer");
+        return false;
+    }
+    
+    size_t len = strnlen(name, 64);
+    if (len == 0 || len >= 64) {
+        Serial.printf("Invalid device name length: %s\n", name);
+        return false;
+    }
+    
+    strncpy(config.deviceName, name, sizeof(config.deviceName) - 1);
+    config.deviceName[sizeof(config.deviceName) - 1] = '\0';
+    
+    Serial.printf("Device name updated to: %s\n", config.deviceName);
+    return true;
+}
+
 bool ConfigManager::isValidUrl(const char* url) {
     if (!url) return false;
     size_t len = strnlen(url, 256);
@@ -191,13 +215,14 @@ bool ConfigManager::isValidHostname(const char* hostname) {
 }
 
 bool ConfigManager::validateConfig() {
-    return isValidUrl(config.apiBaseUrl) && isValidHostname(config.mdnsHostname);
+    return isValidUrl(config.apiBaseUrl) && isValidHostname(config.mdnsHostname) && strlen(config.deviceName) > 0;
 }
 
 String ConfigManager::toJson() {
     JsonDocument doc;
     doc["apiBaseUrl"] = config.apiBaseUrl;
     doc["mdnsHostname"] = config.mdnsHostname;
+    doc["deviceName"] = config.deviceName;
     doc["configValid"] = config.configValid;
     
     String json;
@@ -217,14 +242,15 @@ bool ConfigManager::fromJson(const String& json) {
     // Extract values
     const char* apiUrl = doc["apiBaseUrl"];
     const char* hostname = doc["mdnsHostname"];
+    const char* deviceName = doc["deviceName"];
     
-    if (!apiUrl || !hostname) {
+    if (!apiUrl || !hostname || !deviceName) {
         Serial.println("Missing required fields in JSON");
         return false;
     }
     
     // Validate and set
-    if (!setApiBaseUrl(apiUrl) || !setMdnsHostname(hostname)) {
+    if (!setApiBaseUrl(apiUrl) || !setMdnsHostname(hostname) || !setDeviceName(deviceName)) {
         return false;
     }
     

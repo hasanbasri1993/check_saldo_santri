@@ -41,7 +41,7 @@ bool OTAHandler::begin(uint16_t port) {
     } else {
         Serial.printf("mDNS responder started: %s.local\n", hostname);
         MDNS.addService("http", "tcp", port);
-        MDNS.addServiceTxt("http", "tcp", "device", DEVICE_NAME);
+        MDNS.addServiceTxt("http", "tcp", "device", configManager.getDeviceName());
         MDNS.addServiceTxt("http", "tcp", "version", VERSION);
         MDNS.addServiceTxt("http", "tcp", "hostname", hostname);
         MDNS.addServiceTxt("http", "tcp", "mac", WiFi.macAddress().c_str());
@@ -56,6 +56,7 @@ bool OTAHandler::begin(uint16_t port) {
         Serial.println("Failed to create OTA web server!");
         return false;
     }
+
 
     ElegantOTA.begin(server);
     ElegantOTA.onProgress([this](size_t current, size_t final) {
@@ -128,31 +129,113 @@ void OTAHandler::restartMdns() {
 void OTAHandler::setupWebServer() {
     if (!server) return;
 
-    // Serve static files and information
+    // Serve unified modern interface
     server->on("/", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - OTA</title>";
+        String html = "<!DOCTYPE html><html><head><title>"+String(configManager.getDeviceName())+" - Control Panel</title>";
         html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}table{width:100%;border-collapse:collapse}";
-        html += "th,td{padding:10px;border:1px solid#ddd;text-align:left}th{background:#f2f2f2}";
-        html += ".btn{background:#007bff;color:white;padding:10px 20px;border:none;border-radius:5px;cursor:pointer}";
-        html += ".btn:hover{background:#0056b3}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+"- OTA Update</h1>";
-        html += "<div style='max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)'>";
-        html += "<table><tr><th>Information</th><th>Value</th></tr>";
-        html += "<tr><td>Device Name</td><td>"+String(DEVICE_NAME)+"</td></tr>";
-        html += "<tr><td>Firmware Version</td><td>"+String(VERSION)+"</td></tr>";
-        html += "<tr><td>IP Address</td><td>" + WiFi.localIP().toString() + "</td></tr>";
-        html += "<tr><td>MAC Address</td><td>" + WiFi.macAddress() + "</td></tr>";
-        html += "<tr><td>Uptime</td><td>" + String(millis() / 1000) + " seconds</td></tr>";
-        html += "<tr><td>Free Heap</td><td>" + String(ESP.getFreeHeap()) + " bytes</td></tr>";
-        html += "</table><br>";
-        html += "<a href='/update'><button class='btn'>Go to OTA Update</button></a>";
-        html += "<a href='/config'><button class='btn' style='background:#28a745;margin-left:10px'>Configuration</button></a>";
-        html += "<a href='/mdns-status'><button class='btn' style='background:#17a2b8;margin-left:10px'>mDNS Status</button></a>";
-        html += "<a href='/info'><button class='btn' style='background:#007bff;margin-left:10px'>Info</button></a>";
+        html += "<style>";
+        html += "*{margin:0;padding:0;box-sizing:border-box}";
+        html += "body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;color:#333}";
+        html += ".container{max-width:1200px;margin:0 auto;padding:20px}";
+        html += ".header{text-align:center;margin-bottom:30px;color:white}";
+        html += ".header h1{font-size:2.5rem;margin-bottom:10px;text-shadow:2px 2px 4px rgba(0,0,0,0.3)}";
+        html += ".header p{font-size:1.1rem;opacity:0.9}";
+        html += ".grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-bottom:30px}";
+        html += ".card{background:rgba(255,255,255,0.95);border-radius:15px;padding:25px;box-shadow:0 8px 32px rgba(0,0,0,0.1);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);margin:15px;}";
+        html += ".card h2{color:#4a5568;margin-bottom:20px;font-size:1.4rem;border-bottom:2px solid #e2e8f0;padding-bottom:10px}";
+        html += ".info-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px}";
+        html += ".info-item{display:flex;flex-direction:column}";
+        html += ".info-label{font-weight:600;color:#718096;font-size:0.9rem;margin-bottom:5px}";
+        html += ".info-value{color:#2d3748;font-size:1rem;word-break:break-all}";
+        html += ".form-group{margin-bottom:20px}";
+        html += ".form-group label{display:block;font-weight:600;color:#4a5568;margin-bottom:8px}";
+        html += ".form-group input{width:100%;padding:12px 15px;border:2px solid #e2e8f0;border-radius:8px;font-size:1rem;transition:border-color 0.3s ease}";
+        html += ".form-group input:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,0.1)}";
+        html += ".btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:600;transition:transform 0.2s ease,box-shadow 0.2s ease;text-decoration:none;display:inline-block;text-align:center}";
+        html += ".btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(102,126,234,0.3)}";
+        html += ".btn-success{background:linear-gradient(135deg,#48bb78 0%,#38a169 100%)}";
+        html += ".btn-success:hover{box-shadow:0 8px 25px rgba(72,187,120,0.3)}";
+        html += ".btn-danger{background:linear-gradient(135deg,#f56565 0%,#e53e3e 100%)}";
+        html += ".btn-danger:hover{box-shadow:0 8px 25px rgba(245,101,101,0.3)}";
+        html += ".btn-warning{background:linear-gradient(135deg,#ed8936 0%,#dd6b20 100%)}";
+        html += ".btn-warning:hover{box-shadow:0 8px 25px rgba(237,137,54,0.3)}";
+        html += ".btn-info{background:linear-gradient(135deg,#4299e1 0%,#3182ce 100%)}";
+        html += ".btn-info:hover{box-shadow:0 8px 25px rgba(66,153,225,0.3)}";
+        html += ".btn-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}";
+        html += ".alert{padding:15px;border-radius:8px;margin-bottom:20px;border-left:4px solid}";
+        html += ".alert-success{background:#f0fff4;color:#22543d;border-left-color:#48bb78}";
+        html += ".alert-error{background:#fed7d7;color:#742a2a;border-left-color:#f56565}";
+        html += ".section{margin:15px;}";
+        html += ".section h3{color:#4a5568;margin-bottom:15px;font-size:1.2rem}";
+        html += ".status-indicator{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}";
+        html += ".status-online{background:#48bb78}";
+        html += ".status-offline{background:#f56565}";
+        html += "@media (max-width:768px){.grid{grid-template-columns:1fr}.header h1{font-size:2rem}.btn-group{flex-direction:column}.btn-group .btn{width:100%}}";
+        html += "</style></head><body>";
+        html += "<div class='container'>";
+        html += "<div class='header'>";
+        html += "<h1>"+String(configManager.getDeviceName())+"</h1>";
+        html += "<p>Smart Card Reader Control Panel</p>";
+        html += "</div>";
+        html += "<div class='grid'>";
+        html += "<div class='card'>";
+        html += "<h2>Device Information</h2>";
+        html += "<div class='info-grid'>";
+        html += "<div class='info-item'><span class='info-label'>Device Name</span><span class='info-value'>"+String(configManager.getDeviceName())+"</span></div>";
+        html += "<div class='info-item'><span class='info-label'>Firmware Version</span><span class='info-value'>"+String(VERSION)+"</span></div>";
+        html += "<div class='info-item'><span class='info-label'>IP Address</span><span class='info-value'>"+WiFi.localIP().toString()+"</span></div>";
+        html += "<div class='info-item'><span class='info-label'>MAC Address</span><span class='info-value'>"+WiFi.macAddress()+"</span></div>";
+        html += "<div class='info-item'><span class='info-label'>Uptime</span><span class='info-value'>"+String(millis() / 1000)+" seconds</span></div>";
+        html += "<div class='info-item'><span class='info-label'>Free Heap</span><span class='info-value'>"+String(ESP.getFreeHeap())+" bytes</span></div>";
+        html += "</div>";
+        html += "</div>";
+        html += "<div class='card'>";
+        html += "<h2>Network Status</h2>";
+        html += "<div class='info-grid'>";
+        html += "<div class='info-item'><span class='info-label'>WiFi SSID</span><span class='info-value'>"+WiFi.SSID()+"</span></div>";
+        html += "<div class='info-item'><span class='info-label'>Signal Strength</span><span class='info-value'>"+String(WiFi.RSSI())+" dBm</span></div>";
+        html += "<div class='info-item'><span class='info-label'>mDNS Hostname</span><span class='info-value'>"+String(configManager.getMdnsHostname())+".local</span></div>";
+        html += "<div class='info-item'><span class='info-label'>Connection Status</span><span class='info-value'><span class='status-indicator status-online'></span>Connected</span></div>";
+        html += "</div>";
+        html += "</div>";
+        html += "</div>";
+        html += "<div class='card'>";
+        html += "<h2>Configuration</h2>";
+        html += "<form method='POST' action='/config'>";
+        html += "<div class='form-group'><label for='deviceName'>Device Name</label><input type='text' id='deviceName' name='deviceName' value='"+String(configManager.getDeviceName())+"' required></div>";
+        html += "<div class='form-group'><label for='apiUrl'>API Base URL</label><input type='url' id='apiUrl' name='apiUrl' value='"+String(configManager.getApiBaseUrl())+"' required></div>";
+        html += "<div class='form-group'><label for='hostname'>mDNS Hostname</label><input type='text' id='hostname' name='hostname' value='"+String(configManager.getMdnsHostname())+"' required></div>";
+        html += "<button type='submit' class='btn btn-success'>Save Configuration</button>";
+        html += "</form>";
+        html += "</div>";
+        html += "<div class='card'>";
+        html += "<h2>Authentication Settings</h2>";
+        html += "<form method='POST' action='/auth-change'>";
+        html += "<div class='form-group'><label for='newUsername'>Username</label><input type='text' id='newUsername' name='newUsername' value='"+String(authUsername)+"' required></div>";
+        html += "<div class='form-group'><label for='newPassword'>New Password</label><input type='password' id='newPassword' name='newPassword' placeholder='Enter new password' required></div>";
+        html += "<button type='submit' class='btn btn-success'>Change Authentication</button>";
+        html += "</form>";
+        html += "</div>";
+        html += "<div class='card'>";
+        html += "<h2>System Actions</h2>";
+        html += "<div class='btn-group'>";
+        html += "<a href='/update' class='btn'>OTA Update</a>";
+        html += "<a href='/info' class='btn btn-info'>Device Info JSON</a>";
+        html += "</div>";
+        html += "<div class='section'>";
+        html += "<h3>Danger Zone</h3>";
+        html += "<div class='btn-group'>";
+        html += "<form method='POST' action='/config/reset' onsubmit='return confirm(\"Are you sure you want to reset to defaults?\")' style='display:inline'>";
+        html += "<button type='submit' class='btn btn-warning'>Reset to Defaults</button>";
+        html += "</form>";
+        html += "<form method='POST' action='/config/clear' onsubmit='return confirm(\"Are you sure you want to clear EEPROM? This will erase all stored data.\")' style='display:inline'>";
+        html += "<button type='submit' class='btn btn-danger'>Clear EEPROM</button>";
+        html += "</form>";
+        html += "</div>";
+        html += "</div>";
+        html += "</div>";
+        html += "</div>";
         html += "</div></body></html>";
-
         request->send(200, "text/html", html);
     });
 
@@ -162,53 +245,8 @@ void OTAHandler::setupWebServer() {
         request->send(200, "application/json", info);
     });
 
-    // Configuration page
-    server->on("/config", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        if (!authenticateRequest(request)) {
-            request->requestAuthentication();
-            return;
-        }
-        
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - Configuration</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += "form{display:flex;flex-direction:column;gap:15px}label{font-weight:bold;color:#333}";
-        html += "input[type=text],input[type=url]{padding:10px;border:1px solid #ddd;border-radius:5px;font-size:16px}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px}";
-        html += ".btn:hover{background:#0056b3}.btn-success{background:#28a745}.btn-success:hover{background:#218838}";
-        html += ".btn-danger{background:#dc3545}.btn-danger:hover{background:#c82333}";
-        html += ".alert{padding:10px;margin:10px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
-        html += ".alert-error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - Configuration</h1>";
-        html += "<div class='form-container'>";
-        html += "<form method='POST' action='/config'>";
-        html += "<label for='apiUrl'>API Base URL:</label>";
-        html += "<input type='url' id='apiUrl' name='apiUrl' value='"+String(configManager.getApiBaseUrl())+"' required>";
-        html += "<label for='hostname'>mDNS Hostname:</label>";
-        html += "<input type='text' id='hostname' name='hostname' value='"+String(configManager.getMdnsHostname())+"' required>";
-        html += "<button type='submit' class='btn btn-success'>Save Configuration</button>";
-        html += "</form>";
-        html += "<br><hr><h3>Authentication Settings</h3>";
-        html += "<form method='POST' action='/auth-change'>";
-        html += "<label for='newUsername'>New Username:</label>";
-        html += "<input type='text' id='newUsername' name='newUsername' value='"+String(authUsername)+"' required>";
-        html += "<label for='newPassword'>New Password:</label>";
-        html += "<input type='password' id='newPassword' name='newPassword' placeholder='Enter new password' required>";
-        html += "<button type='submit' class='btn btn-success'>Change Authentication</button>";
-        html += "</form>";
-        html += "<br><form method='POST' action='/config/reset' onsubmit='return confirm(\"Are you sure you want to reset to defaults?\")'>";
-        html += "<button type='submit' class='btn btn-danger'>Reset to Defaults</button>";
-        html += "</form>";
-        html += "<br><form method='POST' action='/config/clear' onsubmit='return confirm(\"Are you sure you want to clear EEPROM? This will erase all stored data.\")'>";
-        html += "<button type='submit' class='btn btn-danger' style='background:#dc3545'>Clear EEPROM</button>";
-        html += "</form>";
-        html += "<br><a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
-        request->send(200, "text/html", html);
-    });
 
-    // Configuration save endpoint
+    // Configuration save endpoint (for the unified interface)
     server->on("/config", HTTP_POST, [&](AsyncWebServerRequest *request) {
         if (!authenticateRequest(request)) {
             request->requestAuthentication();
@@ -216,24 +254,32 @@ void OTAHandler::setupWebServer() {
         }
         
         // Safely read POST form parameters (body params)
+        const AsyncWebParameter* pDeviceName = request->getParam("deviceName", true);
         const AsyncWebParameter* pApi = request->getParam("apiUrl", true);
         const AsyncWebParameter* pHost = request->getParam("hostname", true);
         
         bool success = true;
         String message = "";
         
-        if (!pApi || !pHost) {
+        if (!pDeviceName || !pApi || !pHost) {
             success = false;
             message = "Missing parameters.";
         }
         
+        String deviceName = success ? pDeviceName->value() : String("");
         String apiUrl = success ? pApi->value() : String("");
         String hostname = success ? pHost->value() : String("");
+        deviceName.trim();
         apiUrl.trim();
         hostname.trim();
-        if (success && (apiUrl.length() == 0 || hostname.length() == 0)) {
+        if (success && (deviceName.length() == 0 || apiUrl.length() == 0 || hostname.length() == 0)) {
             success = false;
             message = "Empty parameters are not allowed.";
+        }
+        
+        if (!configManager.setDeviceName(deviceName.c_str())) {
+            success = false;
+            message += "Invalid device name. ";
         }
         
         if (!configManager.setApiBaseUrl(apiUrl.c_str())) {
@@ -259,26 +305,15 @@ void OTAHandler::setupWebServer() {
             }
         }
         
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - Configuration</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += ".alert{padding:15px;margin:15px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
-        html += ".alert-error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - Configuration</h1>";
-        html += "<div class='form-container'>";
-        html += "<div class='alert " + String(success ? "alert-success" : "alert-error") + "'>" + message + "</div>";
-        html += "<a href='/config'><button class='btn'>Back to Configuration</button></a>";
-        html += "<a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
+        // Redirect back to main page with success/error message
+        String redirectHtml = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2;url=/'></head><body>";
+        redirectHtml += "<div style='text-align:center;padding:50px;font-family:Arial,sans-serif'>";
+        redirectHtml += "<h2>" + String(success ? "Success!" : "Error") + "</h2>";
+        redirectHtml += "<p>" + message + "</p>";
+        redirectHtml += "<p>Redirecting to main page...</p>";
+        redirectHtml += "</div></body></html>";
         
-        request->send(200, "text/html", html);
-        
-        if (success) {
-            delay(2000);
-            ESP.restart();
-        }
+        request->send(200, "text/html", redirectHtml);
     });
 
     // Authentication change endpoint
@@ -317,21 +352,15 @@ void OTAHandler::setupWebServer() {
             Serial.printf("Auth credentials changed to: %s\n", authUsername);
         }
         
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - Auth Changed</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += ".alert{padding:15px;margin:15px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
-        html += ".alert-error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - Authentication Changed</h1>";
-        html += "<div class='form-container'>";
-        html += "<div class='alert " + String(success ? "alert-success" : "alert-error") + "'>" + message + "</div>";
-        html += "<a href='/config'><button class='btn'>Back to Configuration</button></a>";
-        html += "<a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
+        // Redirect back to main page with success/error message
+        String redirectHtml = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2;url=/'></head><body>";
+        redirectHtml += "<div style='text-align:center;padding:50px;font-family:Arial,sans-serif'>";
+        redirectHtml += "<h2>" + String(success ? "Success!" : "Error") + "</h2>";
+        redirectHtml += "<p>" + message + "</p>";
+        redirectHtml += "<p>Redirecting to main page...</p>";
+        redirectHtml += "</div></body></html>";
         
-        request->send(200, "text/html", html);
+        request->send(200, "text/html", redirectHtml);
     });
 
     // Configuration reset endpoint
@@ -344,19 +373,15 @@ void OTAHandler::setupWebServer() {
         configManager.resetToDefaults();
         configManager.saveConfig();
         
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - Configuration Reset</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += ".alert{padding:15px;margin:15px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - Configuration Reset</h1>";
-        html += "<div class='form-container'>";
-        html += "<div class='alert alert-success'>Configuration reset to defaults successfully! Device will restart.</div>";
-        html += "<a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
+        // Redirect back to main page
+        String redirectHtml = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2;url=/'></head><body>";
+        redirectHtml += "<div style='text-align:center;padding:50px;font-family:Arial,sans-serif'>";
+        redirectHtml += "<h2>Success!</h2>";
+        redirectHtml += "<p>Configuration reset to defaults successfully! Device will restart.</p>";
+        redirectHtml += "<p>Redirecting to main page...</p>";
+        redirectHtml += "</div></body></html>";
         
-        request->send(200, "text/html", html);
+        request->send(200, "text/html", redirectHtml);
         
         delay(2000);
         ESP.restart();
@@ -371,47 +396,18 @@ void OTAHandler::setupWebServer() {
         
         configManager.clearEEPROM();
         
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - EEPROM Cleared</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += ".alert{padding:15px;margin:15px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - EEPROM Cleared</h1>";
-        html += "<div class='form-container'>";
-        html += "<div class='alert alert-success'>EEPROM cleared successfully! Device will restart.</div>";
-        html += "<a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
+        // Redirect back to main page
+        String redirectHtml = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='2;url=/'></head><body>";
+        redirectHtml += "<div style='text-align:center;padding:50px;font-family:Arial,sans-serif'>";
+        redirectHtml += "<h2>Success!</h2>";
+        redirectHtml += "<p>EEPROM cleared successfully! Device will restart.</p>";
+        redirectHtml += "<p>Redirecting to main page...</p>";
+        redirectHtml += "</div></body></html>";
         
-        request->send(200, "text/html", html);
+        request->send(200, "text/html", redirectHtml);
         
         delay(2000);
         ESP.restart();
-    });
-
-    // mDNS status endpoint
-    server->on("/mdns-status", HTTP_GET, [&](AsyncWebServerRequest *request) {
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - mDNS Status</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += ".status{padding:10px;margin:10px 0;border-radius:5px;background:#f8f9fa;border-left:4px solid #007bff}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - mDNS Status</h1>";
-        html += "<div class='form-container'>";
-        html += "<div class='status'><strong>Current mDNS Hostname:</strong> "+String(configManager.getMdnsHostname())+".local</div>";
-        html += "<div class='status'><strong>Device MAC:</strong> "+WiFi.macAddress()+"</div>";
-        html += "<div class='status'><strong>Device IP:</strong> "+WiFi.localIP().toString()+"</div>";
-        html += "<div class='status'><strong>WiFi SSID:</strong> "+WiFi.SSID()+"</div>";
-        html += "<div class='status'><strong>RSSI:</strong> "+String(WiFi.RSSI())+" dBm</div>";
-        html += "<br><a href='/config'><button class='btn'>Change Configuration</button></a>";
-        html += "<br><form method='POST' action='/mdns-restart' onsubmit='return confirm(\"Are you sure you want to restart mDNS?\")'>";
-        html += "<button type='submit' class='btn' style='background:#ffc107;color:#000'>Restart mDNS</button>";
-        html += "</form>";
-        html += "<br><a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
-        
-        request->send(200, "text/html", html);
     });
 
     // Force mDNS restart endpoint
@@ -424,25 +420,18 @@ void OTAHandler::setupWebServer() {
         Serial.println("Force mDNS restart requested via web interface");
         restartMdns();
         
-        String html = "<!DOCTYPE html><html><head><title>"+String(DEVICE_NAME)+" - mDNS Restarted</title>";
-        html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-        html += "<style>body{font-family:Arial,sans-serif;margin:20px;background:#f0f0f0}";
-        html += "h1{color:#333;text-align:center}.form-container{max-width:600px;margin:0 auto;background:white;padding:20px;border-radius:10px;box-shadow:0 0 10px rgba(0,0,0,0.1)}";
-        html += ".alert{padding:15px;margin:15px 0;border-radius:5px}.alert-success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}";
-        html += ".btn{background:#007bff;color:white;padding:12px 20px;border:none;border-radius:5px;cursor:pointer;font-size:16px;text-decoration:none;display:inline-block}</style></head><body>";
-        html += "<h1>"+String(DEVICE_NAME)+" - mDNS Restarted</h1>";
-        html += "<div class='form-container'>";
-        html += "<div class='alert alert-success'>mDNS has been restarted with hostname: "+String(configManager.getMdnsHostname())+".local</div>";
-        html += "<div class='alert alert-success'>Please wait a few minutes for the change to propagate to your router.</div>";
-        html += "<div class='alert alert-success'><strong>For MikroTik users:</strong> You may need to clear mDNS cache:<br>";
-        html += "<code>/ip dns cache flush</code><br>";
-        html += "Or restart mDNS service:<br>";
-        html += "<code>/ip dns set allow-remote-requests=no<br>/ip dns set allow-remote-requests=yes</code></div>";
-        html += "<br><a href='/mdns-status'><button class='btn'>Check mDNS Status</button></a>";
-        html += "<br><a href='/'><button class='btn'>Back to Main</button></a>";
-        html += "</div></body></html>";
+        // Redirect back to main page
+        String redirectHtml = "<!DOCTYPE html><html><head><meta http-equiv='refresh' content='3;url=/'></head><body>";
+        redirectHtml += "<div style='text-align:center;padding:50px;font-family:Arial,sans-serif'>";
+        redirectHtml += "<h2>Success!</h2>";
+        redirectHtml += "<p>mDNS has been restarted with hostname: "+String(configManager.getMdnsHostname())+".local</p>";
+        redirectHtml += "<p>Please wait a few minutes for the change to propagate to your router.</p>";
+        redirectHtml += "<p><strong>For MikroTik users:</strong> You may need to clear mDNS cache:<br>";
+        redirectHtml += "<code>/ip dns cache flush</code></p>";
+        redirectHtml += "<p>Redirecting to main page...</p>";
+        redirectHtml += "</div></body></html>";
         
-        request->send(200, "text/html", html);
+        request->send(200, "text/html", redirectHtml);
     });
 }
 
@@ -518,7 +507,7 @@ String OTAHandler::base64Decode(String input) {
 
 String OTAHandler::getDeviceInfo() {
     String info = "{";
-    info += "\"device\":\"" + String(DEVICE_NAME) + "\",";
+    info += "\"device\":\"" + String(configManager.getDeviceName()) + "\",";
     info += "\"version\":\"" + String(VERSION) + "\",";
     info += "\"ip\":\"" + WiFi.localIP().toString() + "\",";
     info += "\"mac\":\"" + WiFi.macAddress() + "\",";

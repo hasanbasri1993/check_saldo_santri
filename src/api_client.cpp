@@ -5,7 +5,7 @@
 // CLASS IMPLEMENTATION
 // =============================================
 
-APIClient::APIClient() : baseURL(API_BASE_URL), requestTimeout(5000)
+APIClient::APIClient() : baseURL("http://192.168.87.83:7894"), requestTimeout(5000)
 { // 5 second timeout
     lastResponseCode = 0;
     lastResponseBody = "";

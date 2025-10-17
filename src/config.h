@@ -30,14 +30,13 @@
 #define LED_COUNT       1  // Number of LEDs (built-in RGB LED)
 
 
-#define VERSION "1.0.0"
-#define DEVICE_NAME "Santri Card Reader"
+#define VERSION "2.0.2"
 // =============================================
 // API CONFIGURATION
 // =============================================
 
 // Server Configuration
-#define API_BASE_URL    "http://192.168.87.83:7894"
+// Note: API_BASE_URL is now configurable via web interface and stored in EEPROM
 
 // Note: Card validation now uses query parameters:
 // GET /api/v1/santri/validate?id_card={uid}&id_santri={santri_id}&id_device={mac_address}

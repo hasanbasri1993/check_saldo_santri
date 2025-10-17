@@ -12,12 +12,14 @@
 struct DeviceConfig {
     char apiBaseUrl[128];
     char mdnsHostname[32];
+    char deviceName[64];
     bool configValid;
-    
+
     // Constructor with defaults
     DeviceConfig() {
         strcpy(apiBaseUrl, "http://192.168.87.83:7894");
         strcpy(mdnsHostname, "santri-reader");
+        strcpy(deviceName, "Santri Card Reader");
         configValid = true;
     }
 };
@@ -49,11 +51,13 @@ public:
     // Getters
     const char* getApiBaseUrl();
     const char* getMdnsHostname();
+    const char* getDeviceName();
     DeviceConfig& getConfig();
     
     // Setters
     bool setApiBaseUrl(const char* url);
     bool setMdnsHostname(const char* hostname);
+    bool setDeviceName(const char* name);
     
     // Validation
     bool isValidUrl(const char* url);

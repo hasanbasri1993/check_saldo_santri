@@ -73,7 +73,7 @@ extern WiFiHandler wifiHandler;
 // =============================================
 
 // Check if WiFi is available and server is reachable
-bool testServerConnection(const char* serverURL = API_BASE_URL);
+bool testServerConnection(const char* serverURL = "http://192.168.87.83:7894");
 
 // Non-blocking connection attempt with visual feedback
 bool attemptWiFiConnectionWithFeedback();
