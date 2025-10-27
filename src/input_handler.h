@@ -2,55 +2,67 @@
 #define INPUT_HANDLER_H
 
 #include <Arduino.h>
+#include <Adafruit_NeoPixel.h>
 #include "config.h"
 
 // =============================================
-// TOGGLE SWITCH CLASS
+// KEYPAD BUTTON CLASS
 // =============================================
 
-class ToggleSwitch {
+class KeypadButton {
 private:
-    uint8_t pinA;
-    uint8_t pinB;
-    int lastPosition;
-    int currentPosition;
+    uint8_t pin;
+    int lastState;
+    int currentState;
     unsigned long lastDebounceTime;
     uint16_t debounceDelay;
 
 public:
-    ToggleSwitch(uint8_t switchPinA, uint8_t switchPinB, uint16_t debounceMs = 50);
-
+    KeypadButton(uint8_t buttonPin, uint16_t debounceMs = 50);
+    
     void begin();
     void update();
-    int getCurrentPosition();  // Returns 1, 2, or 3
-    bool hasPositionChanged();  // Returns true only once per position change
-    String getPositionName();  // Returns "INST_1", "INST_2", or "INST_3"
-
+    bool isPressed();  // Returns true when button is pressed
+    bool wasReleased(); // Returns true only once when button is released
+    
 private:
-    void readPosition();
+    void readButton();
 };
 
 // =============================================
-// INSTITUTION LED INDICATOR CLASS
+// ADDRESSABLE LED CLASS
 // =============================================
 
-class InstitutionLEDs {
+class AddressableLEDs {
 private:
-    uint8_t led1Pin;
-    uint8_t led2Pin;
-    uint8_t led3Pin;
-    int currentActiveLED;
-
+    Adafruit_NeoPixel* ledStrip;
+    uint8_t pin;
+    uint16_t ledCount;
+    unsigned long lastUpdate;
+    
 public:
-    InstitutionLEDs(uint8_t pin1, uint8_t pin2, uint8_t pin3);
-
+    AddressableLEDs(uint8_t ledPin, uint16_t count);
+    ~AddressableLEDs();
+    
     void begin();
-    void setActiveInstitution(int institution);  // 1, 2, or 3
+    void update();
+    
+    // Set LED colors based on institution
+    void setInstitutionLED(int institution, uint32_t color);
     void turnOffAll();
-    void blinkAll(int times = 3, int delayMs = 200);
-
+    void blinkLED(int ledIndex, int times = 3, int delayMs = 200);
+    void setAllLEDs(uint32_t color);
+    
+    // Animation effects
+    void showRainbow();
+    void showPulse(uint32_t color);
+    void showBlink(uint32_t color, int times = 3);
+    
+    // Helper function for creating colors
+    static uint32_t createColor(uint8_t r, uint8_t g, uint8_t b);
+    
 private:
-    void updateLEDs();
+    void updateAnimation();
 };
 
 // =============================================
@@ -59,17 +71,24 @@ private:
 
 class InputHandler {
 private:
-    ToggleSwitch* toggleSwitch;
-    InstitutionLEDs* institutionLEDs;
+    KeypadButton* button1;  // Institution 1
+    KeypadButton* button2;  // Institution 2
+    KeypadButton* button3;  // Institution 3
+    KeypadButton* button4;  // Additional function
+    AddressableLEDs* ledStrip;
+    
+    int currentInstitution;
+    int lastInstitution;
     unsigned long lastCheckTime;
 
 public:
     InputHandler();
-
+    ~InputHandler();
+    
     void begin();
     void update();
-
-    // Get current institution from toggle switch
+    
+    // Get current institution from keypad
     int getCurrentInstitution();  // Returns 1, 2, or 3
     
     // Check if institution has changed
@@ -77,14 +96,18 @@ public:
     
     // Get institution name
     String getInstitutionName();
-
+    
     // LED control
     void setActiveInstitution(int institution);
     void blinkInstitutionLEDs();
+    
+    // Additional button handlers
+    bool isButton4Pressed();
 
 private:
-    void initializeToggleSwitch();
-    void initializeInstitutionLEDs();
+    void initializeKeypad();
+    void initializeLEDs();
+    void updateLEDs();
 };
 
 // =============================================

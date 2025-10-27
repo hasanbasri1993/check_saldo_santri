@@ -12,15 +12,15 @@
 // LCD I2C Address
 #define LCD_I2C_ADDR    0x27
 
-// Toggle Switch Pins (3-pin SPDT ON-OFF-ON)
-#define SWITCH_PIN_A    20  // GPIO22 for Switch Position A (Institution 1)
-#define SWITCH_PIN_B    19  // GPIO23 for Switch Position B (Institution 3)
-// Position OFF (Institution 2) is when both pins are HIGH (pulled up)
+// Keypad 1x4 Pins (4 buttons for institutions)
+#define KEYPAD_BUTTON_3_PIN  19  // GPIO19 for Button 1 (Institution 1)
+#define KEYPAD_BUTTON_4_PIN  20  // GPIO20 for Button 2 (Institution 2)
+#define KEYPAD_BUTTON_1_PIN  21  // GPIO21 for Button 3 (Institution 3)
+#define KEYPAD_BUTTON_2_PIN  47  // GPIO47 for Button 4 (Additional function)
 
-// Institution LED Indicators
-#define LED_INST_1_PIN  21  // GPIO21 for Institution 1 LED
-#define LED_INST_2_PIN  4   // GPIO4 for Institution 2 LED  
-#define LED_INST_3_PIN  5   // GPIO5 for Institution 3 LED
+// Addressable LED (WS2812B) Pin
+#define LED_ADDRESSABLE_PIN  14  // GPIO14 for WS2812B LED strip
+#define LED_ADDRESSABLE_COUNT 1  // Number of addressable LEDs (can be adjusted)
 
 // Buzzer Pin
 #define BUZZER_PIN      7  // GPIO19 for Buzzer
