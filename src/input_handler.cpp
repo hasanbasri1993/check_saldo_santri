@@ -124,23 +124,19 @@ void AddressableLEDs::setInstitutionLED(int institution, uint32_t ledColor) {
     
     // Extract original RGB values from the color uint32_t
     // Color format: 0xRRGGBB where RR is at bits 16-23
-    uint8_t r = ((ledColor >> 16) & 0xFF) / 2;
-    uint8_t g = ((ledColor >> 8) & 0xFF) / 2;
-    uint8_t b = (ledColor & 0xFF) / 2;
+    uint8_t r = ((ledColor >> 16) & 0xFF);
+    uint8_t g = ((ledColor >> 8) & 0xFF);
+    uint8_t b = (ledColor & 0xFF);
     
     Serial.printf("=== SETTING LED FOR INSTITUTION %d ===\n", institution);
-    Serial.printf("Original color: R=%d, G=%d, B=%d\n", 
-                 (ledColor >> 16) & 0xFF,
-                 (ledColor >> 8) & 0xFF,
-                 ledColor & 0xFF);
-    Serial.printf("Dimmed color (50%%): R=%d, G=%d, B=%d\n", r, g, b);
+    Serial.printf("Color: R=%d, G=%d, B=%d\n", r, g, b);
     
     // Use Adafruit NeoPixel Color() directly with RGB values
     // The Color() function will handle the correct bit order
     ledStrip->setPixelColor(0, ledStrip->Color(r, g, b));
     ledStrip->show();
     
-    Serial.printf("LED set with RGB(%d,%d,%d) - command sent!\n", r, g, b);
+        Serial.printf("LED set with RGB(%d,%d,%d) at 100%% brightness - command sent!\n", r, g, b);
 }
 
 void AddressableLEDs::turnOffAll() {
@@ -275,8 +271,8 @@ void InputHandler::initializeKeypad() {
     button4->begin();
     
     // Set initial LED based on default institution
-    currentInstitution = 2;
-    lastInstitution = 2;
+    currentInstitution = 1;
+    lastInstitution = 1;
     
     Serial.println("Keypad buttons initialized successfully!");
     Serial.println("Button mapping:");
@@ -361,22 +357,22 @@ void InputHandler::setActiveInstitution(int institution) {
         uint32_t ledColor;
         switch (institution) {
             case 1:
-                ledColor = AddressableLEDs::createColor(255, 0, 0);  // RED
+                ledColor = AddressableLEDs::createColor(0, 0, 255);  // BLUE
                 ledStrip->setInstitutionLED(institution, ledColor);
                 Serial.println("LED set to RED (Institution 1)");
                 break;
             case 2:
-                ledColor = AddressableLEDs::createColor(0, 0, 255);  // BLUE
+                ledColor = AddressableLEDs::createColor(0, 255, 0);  // GREEN
                 ledStrip->setInstitutionLED(institution, ledColor);
                 Serial.println("LED set to BLUE (Institution 2)");
                 break;
             case 3:
-                ledColor = AddressableLEDs::createColor(128, 0, 128);  // PURPLE
+                ledColor = AddressableLEDs::createColor(255, 0, 255);  // PURPLE (actual purple color)
                 ledStrip->setInstitutionLED(institution, ledColor);
                 Serial.println("LED set to PURPLE (Institution 3)");
                 break;
             case 4:
-                ledColor = AddressableLEDs::createColor(0, 255, 0);  // GREEN
+                ledColor = AddressableLEDs::createColor(255, 0, 0);  // RED
                 ledStrip->setInstitutionLED(institution, ledColor);
                 Serial.println("LED set to GREEN (Institution 4)");
                 break;
