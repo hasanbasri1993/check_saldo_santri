@@ -22,15 +22,25 @@ void DisplayManager::initLCD() {
 
 void DisplayManager::clearDisplay() {
     lcd.clear();
+    delay(2); // LCD clear needs time to complete
 }
 
 void DisplayManager::showTwoLines(String line1, String line2) {
     clearDisplay();
 
-    // Center and truncate text if necessary
+    // Truncate to maximum length
+    if (line1.length() > cols) {
+        line1 = line1.substring(0, cols);
+    }
+    if (line2.length() > cols) {
+        line2 = line2.substring(0, cols);
+    }
+
+    // Center text
     centerText(line1, cols);
     centerText(line2, cols);
 
+    // Display both lines
     lcd.setCursor(0, 0);
     lcd.print(line1);
     lcd.setCursor(0, 1);
@@ -38,18 +48,33 @@ void DisplayManager::showTwoLines(String line1, String line2) {
 
     currentLine1 = line1;
     currentLine2 = line2;
+    
+    delay(10); // Allow LCD to update
 }
 
 void DisplayManager::centerText(String& text, uint8_t width) {
+    // First truncate if too long
     if (text.length() > width) {
         text = text.substring(0, width);
-    } else if (text.length() < width) {
+        return; // Already fits
+    }
+    
+    // If shorter, center it with spaces
+    if (text.length() < width) {
         uint8_t padding = (width - text.length()) / 2;
         String paddingStr = "";
         for (uint8_t i = 0; i < padding; i++) {
             paddingStr += " ";
         }
         text = paddingStr + text;
+    }
+    
+    // Ensure final length matches width
+    while (text.length() < width) {
+        text += " ";
+    }
+    if (text.length() > width) {
+        text = text.substring(0, width);
     }
 }
 
@@ -137,6 +162,24 @@ void DisplayManager::update() {
     // Auto-clear temporary messages after delay
     if (isDisplayingMessage && (millis() - messageStartTime >= LCD_MESSAGE_DELAY)) {
         showIdleScreen();
+    }
+    
+    // Periodically reinitialize LCD if it's been inactive for too long
+    static unsigned long lastReinitCheck = 0;
+    if (millis() - lastReinitCheck > 60000) { // Check every 60 seconds
+        lastReinitCheck = millis();
+        
+        // Soft reset display
+        lcd.init();
+        lcd.backlight();
+        
+        // Restore current display
+        if (!currentLine1.isEmpty() && !currentLine2.isEmpty()) {
+            lcd.setCursor(0, 0);
+            lcd.print(currentLine1);
+            lcd.setCursor(0, 1);
+            lcd.print(currentLine2);
+        }
     }
 }
 
