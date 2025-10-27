@@ -56,7 +56,8 @@ bool KeypadButton::wasReleased() {
 
 AddressableLEDs::AddressableLEDs(uint8_t ledPin, uint16_t count) :
     ledStrip(nullptr), pin(ledPin), ledCount(count), lastUpdate(0) {
-    ledStrip = new Adafruit_NeoPixel(count, pin, NEO_GRB + NEO_KHZ800);
+    // WS2812B uses NEO_RGB color order
+    ledStrip = new Adafruit_NeoPixel(count, pin, NEO_RGB + NEO_KHZ800);
 }
 
 AddressableLEDs::~AddressableLEDs() {
@@ -72,6 +73,33 @@ void AddressableLEDs::begin() {
         ledStrip->clear();
         ledStrip->show();
         Serial.printf("Addressable LEDs initialized - Pin: %d, Count: %d\n", pin, ledCount);
+        
+        // Test LED with different colors
+        Serial.println("Testing LED colors...");
+        
+        // Test RED
+        ledStrip->setPixelColor(0, ledStrip->Color(128, 0, 0));
+        ledStrip->show();
+        Serial.println("Test: RED (128, 0, 0)");
+        delay(1000);
+        
+        // Test GREEN
+        ledStrip->setPixelColor(0, ledStrip->Color(0, 128, 0));
+        ledStrip->show();
+        Serial.println("Test: GREEN (0, 128, 0)");
+        delay(1000);
+        
+        // Test BLUE
+        ledStrip->setPixelColor(0, ledStrip->Color(0, 0, 128));
+        ledStrip->show();
+        Serial.println("Test: BLUE (0, 0, 128)");
+        delay(1000);
+        
+        // Test OFF
+        ledStrip->clear();
+        ledStrip->show();
+        Serial.println("Test: OFF");
+        delay(500);
     }
 }
 
@@ -86,19 +114,33 @@ uint32_t AddressableLEDs::createColor(uint8_t r, uint8_t g, uint8_t b) {
 }
 
 void AddressableLEDs::setInstitutionLED(int institution, uint32_t ledColor) {
-    if (!ledStrip) return;
+    if (!ledStrip) {
+        Serial.println("ERROR: ledStrip is NULL!");
+        return;
+    }
     
     // Turn off all LEDs first
     ledStrip->clear();
     
-    // Set the active LED
-    // Map: Institution 1 -> LED 0 (RED), Institution 2 -> LED 1 (GREEN), Institution 3 -> LED 2 (BLUE)
-    int ledIndex = institution - 1;
-    if (ledIndex >= 0 && ledIndex < ledCount) {
-        ledStrip->setPixelColor(ledIndex, ledColor);
-    }
+    // Extract original RGB values from the color uint32_t
+    // Color format: 0xRRGGBB where RR is at bits 16-23
+    uint8_t r = ((ledColor >> 16) & 0xFF) / 2;
+    uint8_t g = ((ledColor >> 8) & 0xFF) / 2;
+    uint8_t b = (ledColor & 0xFF) / 2;
     
+    Serial.printf("=== SETTING LED FOR INSTITUTION %d ===\n", institution);
+    Serial.printf("Original color: R=%d, G=%d, B=%d\n", 
+                 (ledColor >> 16) & 0xFF,
+                 (ledColor >> 8) & 0xFF,
+                 ledColor & 0xFF);
+    Serial.printf("Dimmed color (50%%): R=%d, G=%d, B=%d\n", r, g, b);
+    
+    // Use Adafruit NeoPixel Color() directly with RGB values
+    // The Color() function will handle the correct bit order
+    ledStrip->setPixelColor(0, ledStrip->Color(r, g, b));
     ledStrip->show();
+    
+    Serial.printf("LED set with RGB(%d,%d,%d) - command sent!\n", r, g, b);
 }
 
 void AddressableLEDs::turnOffAll() {
@@ -272,12 +314,19 @@ int InputHandler::getCurrentInstitution() {
     if (button1 && button1->isPressed()) {
         currentInstitution = 1;
         Serial.println("Button 1 pressed - Institution 1 selected");
+        setActiveInstitution(1);  // Update LED immediately
     } else if (button2 && button2->isPressed()) {
         currentInstitution = 2;
         Serial.println("Button 2 pressed - Institution 2 selected");
+        setActiveInstitution(2);  // Update LED immediately
     } else if (button3 && button3->isPressed()) {
         currentInstitution = 3;
         Serial.println("Button 3 pressed - Institution 3 selected");
+        setActiveInstitution(3);  // Update LED immediately
+    } else if (button4 && button4->isPressed()) {
+        currentInstitution = 4;
+        Serial.println("Button 4 pressed - Institution 4 selected");
+        setActiveInstitution(4);  // Update LED immediately
     }
     
     return currentInstitution;
@@ -300,6 +349,7 @@ String InputHandler::getInstitutionName() {
         case 1: return "INSTITUTION_1";
         case 2: return "INSTITUTION_2";
         case 3: return "INSTITUTION_3";
+        case 4: return "INSTITUTION_4";
         default: return "UNKNOWN";
     }
 }
@@ -316,14 +366,19 @@ void InputHandler::setActiveInstitution(int institution) {
                 Serial.println("LED set to RED (Institution 1)");
                 break;
             case 2:
-                ledColor = AddressableLEDs::createColor(0, 255, 0);  // GREEN
-                ledStrip->setInstitutionLED(institution, ledColor);
-                Serial.println("LED set to GREEN (Institution 2)");
-                break;
-            case 3:
                 ledColor = AddressableLEDs::createColor(0, 0, 255);  // BLUE
                 ledStrip->setInstitutionLED(institution, ledColor);
-                Serial.println("LED set to BLUE (Institution 3)");
+                Serial.println("LED set to BLUE (Institution 2)");
+                break;
+            case 3:
+                ledColor = AddressableLEDs::createColor(128, 0, 128);  // PURPLE
+                ledStrip->setInstitutionLED(institution, ledColor);
+                Serial.println("LED set to PURPLE (Institution 3)");
+                break;
+            case 4:
+                ledColor = AddressableLEDs::createColor(0, 255, 0);  // GREEN
+                ledStrip->setInstitutionLED(institution, ledColor);
+                Serial.println("LED set to GREEN (Institution 4)");
                 break;
             default:
                 ledStrip->turnOffAll();
@@ -358,6 +413,7 @@ String getInstitutionName(int institution) {
         case 1: return "INSTITUTION_1";
         case 2: return "INSTITUTION_2";
         case 3: return "INSTITUTION_3";
+        case 4: return "INSTITUTION_4";
         default: return "UNKNOWN";
     }
 }
