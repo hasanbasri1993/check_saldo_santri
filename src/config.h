@@ -61,7 +61,7 @@
 
 #define CARD_READ_TIMEOUT       5000    // 5 seconds timeout for card reading
 #define BUTTON_DEBOUNCE_DELAY   50      // Debounce delay for buttons
-#define LCD_MESSAGE_DELAY       3000    // 3 seconds for status messages
+#define LCD_MESSAGE_DELAY       1500    // 3 seconds for status messages
 #define WIFI_CONNECTION_TIMEOUT 10000   // 10 seconds for WiFi connection
 
 // =============================================
